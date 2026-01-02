@@ -1,0 +1,7 @@
+[project]
+name = "ffmpeg-transcode"
+version = "0.1.0"
+description = ""
+authors = [ "Justin Herndon"]
+requires-python = ">=3.13"
+dependencies = ["ffmpeg"]

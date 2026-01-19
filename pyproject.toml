@@ -1,5 +1,5 @@
 [project]
-name = "ffmpeg-transcode"
+name = "transcode"
 version = "0.0.1"
 description = "This will be a transcoding script for video containers"
 authors = [ { name = "Justin Herndon", email = "jherndon111@gmail.com" } ]
@@ -8,7 +8,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 license = "MIT"
 keywords = ["cli"]
-dependencies = ["ffmpeg"]
+dependencies = ["ffmpeg", "click" ]
 classifiers = [
   "Development Status :: 1 - Planning",
   "Environment :: Console",

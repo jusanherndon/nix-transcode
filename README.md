@@ -6,3 +6,4 @@ This will be a python flake utilizing ffmpeg-python to add python bindings to ff
 [ffmpeg Python Bindings](https://github.com/kkroening/ffmpeg-python/tree/master)
 [Writing a pyproject.toml](https://packaging.python.org/en/latest/guides/writing-pyproject-toml/)
 [Flake Template](https://github.com/vst/nix-flake-templates/tree/main/templates/python-package)
+[Post from Flake Template VST](https://www.thenegation.com/posts/nix-powered-python-dev/)

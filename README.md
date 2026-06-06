@@ -1,9 +1,55 @@
 # nix-transcode
-This will be a python flake utilizing ffmpeg-python to add python bindings to ffmpeg command line calls
 
-# Sources
-[Impure Flake template](https://pyproject-nix.github.io/pyproject.nix/templates.html#impure)
-[ffmpeg Python Bindings](https://github.com/kkroening/ffmpeg-python/tree/master)
-[Writing a pyproject.toml](https://packaging.python.org/en/latest/guides/writing-pyproject-toml/)
-[Flake Template](https://github.com/vst/nix-flake-templates/tree/main/templates/python-package)
-[Post from Flake Template VST](https://www.thenegation.com/posts/nix-powered-python-dev/)
+A small Python CLI that shells out to `ffmpeg` to transcode video to AV1 with Intel Quick Sync Video (`av1_qsv`).
+
+The default command:
+
+- writes a Matroska (`.mkv`) container
+- encodes video with Intel's AV1 QSV encoder
+- copies audio streams without re-encoding
+- copies subtitle streams without re-encoding
+- preserves metadata and chapters
+
+## Requirements
+
+- `ffmpeg` available on `PATH`
+- An Intel GPU/driver stack with `av1_qsv` support
+
+Check encoder availability with:
+
+```sh
+ffmpeg -hide_banner -encoders | grep av1_qsv
+```
+
+## Usage
+
+```sh
+transcode input.mkv
+# or
+transcode --input-file input.mkv
+```
+
+This creates `input.av1.mkv` next to the source file.
+
+Useful options:
+
+```sh
+transcode input.mkv -o output.mkv
+transcode --input-file input.mkv -o output.mkv
+transcode input.mkv --quality 16 --preset slow
+transcode input.mkv --dry-run
+transcode input.mkv --no-hwaccel
+transcode input.mkv --overwrite
+```
+
+`--quality` maps to ffmpeg's `-global_quality` for `av1_qsv`; lower values preserve more quality but create larger files. The default is `18`.
+
+## Example ffmpeg command
+
+```sh
+ffmpeg -hide_banner -n -hwaccel qsv -hwaccel_output_format qsv -i input.mkv \
+  -map 0 -map_metadata 0 -map_chapters 0 \
+  -c:v av1_qsv -preset slow -global_quality 18 -b:v 0 \
+  -c:a copy -c:s copy -c:t copy \
+  -f matroska -max_muxing_queue_size 4096 input.av1.mkv
+```

@@ -9,105 +9,94 @@
   outputs = { self, nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        ## Import nixpkgs:
         pkgs = import nixpkgs { inherit system; };
+        lib = pkgs.lib;
 
-        ## Read pyproject.toml file:
+        python = pkgs.python313;
+        pythonPackages = pkgs.python313Packages;
+
         pyproject = builtins.fromTOML (builtins.readFile ./pyproject.toml);
-
-        ## Get project specification:
         project = pyproject.project;
 
-        ## Get the package:
-        package = pkgs.python3Packages.buildPythonPackage {
-          ## Set the package name:
-          pname = project.name;
+        ffmpegRuntime = pkgs.ffmpeg-full;
 
-          ## Inherit the package version:
+        package = pythonPackages.buildPythonPackage {
+          pname = project.name;
           inherit (project) version;
 
-          ## Set the package format:
-          format = "pyproject";
-
-          ## Set the package source:
+          pyproject = true;
           src = ./.;
 
-          ## Specify the build system to use:
-          build-system = with pkgs.python3Packages; [
-            setuptools
+          build-system = [
+            pythonPackages.hatchling
           ];
 
-          ## Specify test dependencies:
+          nativeBuildInputs = [
+            pkgs.makeWrapper
+          ];
+
+          propagatedBuildInputs = [
+            pythonPackages.click
+            pythonPackages."python-ffmpeg"
+          ];
+
           nativeCheckInputs = [
-            ## Python dependencies:
-            pkgs.python3Packages.mypy
-            pkgs.python3Packages.nox
-            pkgs.python3Packages.pytest
-            pkgs.python3Packages.ruff
-
-            ## Non-Python dependencies:
-            pkgs.taplo
+            pythonPackages.pytest
+            pythonPackages.ruff
           ];
 
-          ## Define the check phase:
           checkPhase = ''
             runHook preCheck
-            nox
+            pytest -q
+            ruff check .
             runHook postCheck
           '';
 
-          ## Specify production dependencies:
-          propagatedBuildInputs = [
-            pkgs.python3Packages.click
-          ];
+          postInstall = ''
+            wrapProgram $out/bin/transcode \
+              --prefix PATH : ${lib.makeBinPath [ ffmpegRuntime ]}
+          '';
         };
 
-        ## Make our package editable:
-        editablePackage = pkgs.python3.pkgs.mkPythonEditablePackage {
+        editablePackage = python.pkgs.mkPythonEditablePackage {
           pname = project.name;
           inherit (project) scripts version;
           root = "$PWD";
         };
       in
       {
-        ## Project packages output:
         packages = {
           "${project.name}" = package;
           default = self.packages.${system}.${project.name};
         };
 
-        ## Project development shell output:
+        apps = {
+          "${project.name}" = flake-utils.lib.mkApp {
+            drv = package;
+            exePath = "/bin/transcode";
+          };
+          default = self.apps.${system}.${project.name};
+        };
+
         devShells = {
           default = pkgs.mkShell {
-            inputsFrom = [
-              package
-            ];
+            inputsFrom = [ package ];
 
             buildInputs = [
-              #################
-              ## OUR PACKAGE ##
-              #################
-
               editablePackage
 
-              #################
-              # VARIOUS TOOLS #
-              #################
+              ffmpegRuntime
 
-              pkgs.python3Packages.build
-              pkgs.python3Packages.ipython
+              pythonPackages.build
+              pythonPackages.hatchling
+              pythonPackages.ipython
+              pythonPackages.pytest
+              pythonPackages.ruff
+              pythonPackages."python-ffmpeg"
+              pythonPackages.click
 
-              ####################
-              # EDITOR/LSP TOOLS #
-              ####################
-
-              # LSP server:
-              pkgs.python3Packages.python-lsp-server
-
-              # LSP server plugins of interest:
-              pkgs.python3Packages.pylsp-mypy
-              pkgs.python3Packages.pylsp-rope
-              pkgs.python3Packages.python-lsp-ruff
+              pythonPackages.python-lsp-server
+              pythonPackages.python-lsp-ruff
             ];
           };
         };

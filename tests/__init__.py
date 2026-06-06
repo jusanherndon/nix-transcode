@@ -1,1 +1,1 @@
-"""This package provides tests for our package."""
+"""Here is the testing for the package."""

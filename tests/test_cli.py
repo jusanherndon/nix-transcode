@@ -6,6 +6,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
+import transcode.cli as cli
 from transcode.cli import main
 from transcode.transcode import TranscodeOptions, build_ffmpeg_command
 
@@ -49,3 +50,66 @@ def test_cli_input_file_option_dry_run(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert f"-i {input_file}" in result.output
     assert str(tmp_path / "movie.av1.mkv") in result.output
+
+
+def test_cli_input_directory_dry_run(tmp_path: Path) -> None:
+    """A directory input builds one command per regular, non-transcoded file."""
+    first_file = tmp_path / "a.mkv"
+    second_file = tmp_path / "b.mkv"
+    previous_output = tmp_path / "transcoded_old.mkv"
+    nested_dir = tmp_path / "nested"
+    for input_file in (first_file, second_file, previous_output):
+        input_file.write_text("not really video")
+    nested_dir.mkdir()
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["--input-directory", str(tmp_path), "--dry-run", "--no-hwaccel"])
+
+    assert result.exit_code == 0
+    assert f"-i {first_file}" in result.output
+    assert f"-i {second_file}" in result.output
+    assert str(tmp_path / "transcoded_a.av1.mkv") in result.output
+    assert str(tmp_path / "transcoded_b.av1.mkv") in result.output
+    assert "transcoded_old" not in result.output
+
+
+def test_cli_input_directory_wait_seconds_minimum(tmp_path: Path) -> None:
+    """Directory waits must be at least five minutes."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        ["--input-directory", str(tmp_path), "--wait-seconds", "299", "--dry-run"],
+    )
+
+    assert result.exit_code != 0
+    assert "299 is not in the range" in result.output
+
+
+def test_cli_input_directory_waits_between_transcodes(tmp_path: Path, monkeypatch) -> None:
+    """Directory transcodes sleep between successful jobs."""
+    first_file = tmp_path / "a.mkv"
+    second_file = tmp_path / "b.mkv"
+    for input_file in (first_file, second_file):
+        input_file.write_text("not really video")
+    slept_seconds: list[int] = []
+    transcoded_files: list[Path] = []
+
+    def fake_transcode(options: TranscodeOptions) -> int:
+        transcoded_files.append(options.input_file)
+        return 0
+
+    monkeypatch.setattr(cli, "transcode", fake_transcode)
+    monkeypatch.setattr(cli.time, "sleep", slept_seconds.append)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        ["--input-directory", str(tmp_path), "--wait-seconds", "300", "--no-hwaccel"],
+    )
+
+    assert result.exit_code == 0
+    assert transcoded_files == [first_file, second_file]
+    assert slept_seconds == [300]

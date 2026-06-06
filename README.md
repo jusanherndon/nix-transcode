@@ -27,15 +27,20 @@ ffmpeg -hide_banner -encoders | grep av1_qsv
 transcode input.mkv
 # or
 transcode --input-file input.mkv
+# or transcode every regular file in a directory, one at a time
+transcode --input-directory /path/to/videos
 ```
 
-This creates `input.av1.mkv` next to the source file.
+A single-file transcode creates `input.av1.mkv` next to the source file.
+
+A directory transcode creates outputs next to each source file with a `transcoded_` prefix, such as `transcoded_input.av1.mkv`. Files that already start with `transcoded_` are skipped. Directory transcodes wait at least 300 seconds (5 minutes) between files to give the GPU a break.
 
 Useful options:
 
 ```sh
 transcode input.mkv -o output.mkv
 transcode --input-file input.mkv -o output.mkv
+transcode --input-directory /path/to/videos --wait-seconds 600
 transcode input.mkv --quality 16 --preset slow
 transcode input.mkv --dry-run
 transcode input.mkv --no-hwaccel

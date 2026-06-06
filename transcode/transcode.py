@@ -27,7 +27,7 @@ class TranscodeOptions:
         """Return the requested output path, defaulting to a Matroska file."""
         if self.output_file is not None:
             return self.output_file
-        return self.input_file.with_name(f"{self.input_file.stem}.av1.mkv")
+        return self.input_file.with_name(f"{self.input_file.stem}.mkv")
 
 
 def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:

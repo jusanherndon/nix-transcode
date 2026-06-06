@@ -21,7 +21,7 @@ TRANSCODED_PREFIX = "transcoded_"
 
 def directory_output_for(input_file: Path) -> Path:
     """Return the output path used for directory transcodes."""
-    return input_file.with_name(f"{TRANSCODED_PREFIX}{input_file.stem}.av1.mkv")
+    return input_file.with_name(f"{TRANSCODED_PREFIX}{input_file.stem}.mkv")
 
 
 def directory_inputs(input_directory: Path) -> list[Path]:
@@ -56,7 +56,7 @@ def directory_inputs(input_directory: Path) -> list[Path]:
     "--output",
     "output_file",
     type=click.Path(dir_okay=False, path_type=Path),
-    help="Output .mkv path. Defaults to INPUT_STEM.av1.mkv next to the input.",
+    help="Output .mkv path. Defaults to INPUT_STEM.mkv next to the input.",
 )
 @click.option(
     "-q",
@@ -86,7 +86,9 @@ def directory_inputs(input_directory: Path) -> list[Path]:
     type=click.IntRange(DEFAULT_DIRECTORY_WAIT_SECONDS),
     help="Seconds to wait between files when transcoding a directory; minimum is 300 seconds.",
 )
-@click.option("--dry-run", is_flag=True, help="Print the ffmpeg command without running it.")
+@click.option(
+    "--dry-run", is_flag=True, help="Print the ffmpeg command without running it."
+)
 @click.version_option(__version__, prog_name="transcode")
 def main(
     input_path: Path | None,
@@ -106,7 +108,9 @@ def main(
     attachment streams are copied from the source without re-encoding.
     """
     input_sources = [
-        source for source in (input_path, input_file, input_directory) if source is not None
+        source
+        for source in (input_path, input_file, input_directory)
+        if source is not None
     ]
     if len(input_sources) > 1:
         raise click.UsageError(
@@ -144,13 +148,17 @@ def main(
                 raise click.exceptions.Exit(exit_code)
 
             if index < len(jobs) - 1:
-                click.echo(f"Waiting {wait_seconds} seconds before the next transcode...")
+                click.echo(
+                    f"Waiting {wait_seconds} seconds before the next transcode..."
+                )
                 time.sleep(wait_seconds)
         return
 
     source_file = input_file or input_path
     if source_file is None:
-        raise click.UsageError("missing input file; pass INPUT_PATH, --input-file, or --input-directory")
+        raise click.UsageError(
+            "missing input file; pass INPUT_PATH, --input-file, or --input-directory"
+        )
 
     options = TranscodeOptions(
         input_file=source_file,

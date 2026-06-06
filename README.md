@@ -31,9 +31,9 @@ transcode --input-file input.mkv
 transcode --input-directory /path/to/videos
 ```
 
-A single-file transcode creates `input.av1.mkv` next to the source file.
+A single-file transcode creates `input.mkv` next to the source file.
 
-A directory transcode creates outputs next to each source file with a `transcoded_` prefix, such as `transcoded_input.av1.mkv`. Files that already start with `transcoded_` are skipped. Directory transcodes wait at least 300 seconds (5 minutes) between files to give the GPU a break.
+A directory transcode creates outputs next to each source file with a `transcoded_` prefix, such as `transcoded_input.mkv`. Files that already start with `transcoded_` are skipped. Directory transcodes wait at least 300 seconds (5 minutes) between files to give the GPU a break.
 
 Useful options:
 
@@ -56,5 +56,5 @@ ffmpeg -hide_banner -n -hwaccel qsv -hwaccel_output_format qsv -i input.mkv \
   -map 0 -map_metadata 0 -map_chapters 0 \
   -c:v av1_qsv -preset slow -global_quality 18 -b:v 0 \
   -c:a copy -c:s copy -c:t copy \
-  -f matroska -max_muxing_queue_size 4096 input.av1.mkv
+  -f matroska -max_muxing_queue_size 4096 transcoded_input.mkv
 ```

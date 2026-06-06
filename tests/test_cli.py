@@ -21,7 +21,7 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert "av1_qsv" in command
     assert command[command.index("-c:a") + 1] == "copy"
     assert command[command.index("-c:s") + 1] == "copy"
-    assert str(tmp_path / "movie.av1.mkv") in command
+    assert str(tmp_path / "movie.mkv") in command
 
 
 def test_cli_dry_run(tmp_path: Path) -> None:
@@ -45,11 +45,13 @@ def test_cli_input_file_option_dry_run(tmp_path: Path) -> None:
     input_file.write_text("not really video")
 
     runner = CliRunner()
-    result = runner.invoke(main, ["--input-file", str(input_file), "--dry-run", "--no-hwaccel"])
+    result = runner.invoke(
+        main, ["--input-file", str(input_file), "--dry-run", "--no-hwaccel"]
+    )
 
     assert result.exit_code == 0
     assert f"-i {input_file}" in result.output
-    assert str(tmp_path / "movie.av1.mkv") in result.output
+    assert str(tmp_path / "movie.mkv") in result.output
 
 
 def test_cli_input_directory_dry_run(tmp_path: Path) -> None:
@@ -63,13 +65,15 @@ def test_cli_input_directory_dry_run(tmp_path: Path) -> None:
     nested_dir.mkdir()
 
     runner = CliRunner()
-    result = runner.invoke(main, ["--input-directory", str(tmp_path), "--dry-run", "--no-hwaccel"])
+    result = runner.invoke(
+        main, ["--input-directory", str(tmp_path), "--dry-run", "--no-hwaccel"]
+    )
 
     assert result.exit_code == 0
     assert f"-i {first_file}" in result.output
     assert f"-i {second_file}" in result.output
-    assert str(tmp_path / "transcoded_a.av1.mkv") in result.output
-    assert str(tmp_path / "transcoded_b.av1.mkv") in result.output
+    assert str(tmp_path / "transcoded_a.mkv") in result.output
+    assert str(tmp_path / "transcoded_b.mkv") in result.output
     assert "transcoded_old" not in result.output
 
 
@@ -88,7 +92,9 @@ def test_cli_input_directory_wait_seconds_minimum(tmp_path: Path) -> None:
     assert "299 is not in the range" in result.output
 
 
-def test_cli_input_directory_waits_between_transcodes(tmp_path: Path, monkeypatch) -> None:
+def test_cli_input_directory_waits_between_transcodes(
+    tmp_path: Path, monkeypatch
+) -> None:
     """Directory transcodes sleep between successful jobs."""
     first_file = tmp_path / "a.mkv"
     second_file = tmp_path / "b.mkv"

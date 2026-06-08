@@ -33,10 +33,11 @@ class TranscodeOptions:
 def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     """Build a python-ffmpeg ``FFmpeg`` job for Matroska-to-AV1/QSV transcoding.
 
-    The job uses Intel Quick Sync Video's AV1 encoder (``av1_qsv``), keeps all
-    streams from the source file (``-map 0``), copies audio, subtitle, and
-    attachment streams without re-encoding, preserves metadata and chapters,
-    and writes a Matroska container.
+    The job uses Intel Quick Sync Video's AV1 encoder (``av1_qsv``) with the
+    10-bit ``p010le`` pixel format, keeps all streams from the source file
+    (``-map 0``), copies audio, subtitle, and attachment streams without
+    re-encoding, preserves metadata and chapters, and writes a Matroska
+    container.
     """
     ffmpeg = FFmpeg(executable=options.ffmpeg_bin)
     ffmpeg.option("hide_banner")
@@ -54,6 +55,7 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
             "map_metadata": "0",
             "map_chapters": "0",
             "c:v": "av1_qsv",
+            "pix_fmt": "p010le",
             "preset": options.preset,
             "global_quality": options.quality,
             "b:v": "0",

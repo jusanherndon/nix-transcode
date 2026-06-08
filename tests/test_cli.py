@@ -19,6 +19,7 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     command = build_ffmpeg_command(TranscodeOptions(input_file=input_file))
 
     assert "av1_qsv" in command
+    assert command[command.index("-pix_fmt") + 1] == "p010le"
     assert command[command.index("-c:a") + 1] == "copy"
     assert command[command.index("-c:s") + 1] == "copy"
     assert str(tmp_path / "movie.mkv") in command
@@ -35,6 +36,7 @@ def test_cli_dry_run(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "ffmpeg" in result.output
     assert "av1_qsv" in result.output
+    assert "-pix_fmt p010le" in result.output
     assert "-c:a copy" in result.output
     assert "-c:s copy" in result.output
 

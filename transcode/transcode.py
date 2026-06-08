@@ -48,24 +48,26 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
         input_options = {"hwaccel": "qsv", "hwaccel_output_format": "qsv"}
 
     ffmpeg.input(str(options.input_file), input_options)
-    ffmpeg.output(
-        str(options.resolved_output()),
-        {
-            "map": "0",
-            "map_metadata": "0",
-            "map_chapters": "0",
-            "c:v": "av1_qsv",
-            "pix_fmt": "p010le",
-            "preset": options.preset,
-            "global_quality": options.quality,
-            "b:v": "0",
-            "c:a": "copy",
-            "c:s": "copy",
-            "c:t": "copy",
-            "f": "matroska",
-            "max_muxing_queue_size": "4096",
-        },
-    )
+    output_options = {
+        "map": "0",
+        "map_metadata": "0",
+        "map_chapters": "0",
+        "c:v": "av1_qsv",
+        "preset": options.preset,
+        "global_quality": options.quality,
+        "b:v": "0",
+        "c:a": "copy",
+        "c:s": "copy",
+        "c:t": "copy",
+        "f": "matroska",
+        "max_muxing_queue_size": "4096",
+    }
+    if options.hwaccel:
+        output_options["vf"] = "vpp_qsv=format=p010le"
+    else:
+        output_options["pix_fmt"] = "p010le"
+
+    ffmpeg.output(str(options.resolved_output()), output_options)
     return ffmpeg
 
 
@@ -86,8 +88,11 @@ def transcode(options: TranscodeOptions) -> int:
         msg = "input and output paths must be different"
         raise ValueError(msg)
 
+    output_existed = output_file.exists()
     try:
         build_ffmpeg(options).execute()
     except FFmpegError:
+        if output_file.exists() and (options.overwrite or not output_existed):
+            output_file.unlink()
         return 1
     return 0

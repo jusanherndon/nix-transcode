@@ -50,7 +50,7 @@ transcode input.mkv --no-hwaccel
 transcode input.mkv --overwrite
 ```
 
-`--quality` maps to ffmpeg's `-global_quality` for `av1_qsv`; lower values preserve more quality but create larger files. The default is `18`. If the first video stream is already AV1, the video stream is copied and encoder quality/preset options are not used. Subtitle streams are copied when all subtitles are already SSA/ASS; otherwise ffmpeg is asked to convert subtitles to ASS.
+`--quality` maps to ffmpeg's `-global_quality` for `av1_qsv`; lower values preserve more quality but create larger files. The default is `18`. If the first video stream is already AV1, the video stream is copied and encoder quality/preset options are not used. All subtitle streams are mapped with `-map 0`; each SSA/ASS subtitle stream is copied, and each other subtitle stream is converted to ASS.
 
 ## Example ffmpeg command
 
@@ -58,6 +58,6 @@ transcode input.mkv --overwrite
 ffmpeg -hide_banner -n -hwaccel qsv -hwaccel_output_format qsv -i input.mkv \
   -map 0 -map_metadata 0 -map_chapters 0 \
   -c:v av1_qsv -preset slow -global_quality 18 -b:v 0 \
-  -c:a copy -c:s ass -c:t copy \
+  -c:a copy -c:s:0 ass -c:t copy \
   -f matroska -max_muxing_queue_size 4096 -vf vpp_qsv=format=p010le transcoded_input.mkv
 ```

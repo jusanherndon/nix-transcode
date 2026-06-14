@@ -55,7 +55,7 @@ def test_build_ffmpeg_command_converts_non_ass_subtitles(tmp_path: Path) -> None
         TranscodeOptions(input_file=input_file, subtitle_codecs=("subrip",))
     )
 
-    assert command[command.index("-c:s") + 1] == "ass"
+    assert command[command.index("-c:s:0") + 1] == "ass"
 
 
 def test_build_ffmpeg_command_copies_ass_subtitles(tmp_path: Path) -> None:
@@ -67,7 +67,24 @@ def test_build_ffmpeg_command_copies_ass_subtitles(tmp_path: Path) -> None:
         TranscodeOptions(input_file=input_file, subtitle_codecs=("ssa", "ass"))
     )
 
-    assert command[command.index("-c:s") + 1] == "copy"
+    assert command[command.index("-c:s:0") + 1] == "copy"
+    assert command[command.index("-c:s:1") + 1] == "copy"
+
+
+def test_build_ffmpeg_command_preserves_multiple_mixed_subtitles(
+    tmp_path: Path,
+) -> None:
+    """Every subtitle stream gets an explicit copy-or-convert codec option."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    command = build_ffmpeg_command(
+        TranscodeOptions(input_file=input_file, subtitle_codecs=("ass", "subrip"))
+    )
+
+    assert command[command.index("-map") + 1] == "0"
+    assert command[command.index("-c:s:0") + 1] == "copy"
+    assert command[command.index("-c:s:1") + 1] == "ass"
 
 
 def test_probe_video_codec(tmp_path: Path, monkeypatch) -> None:

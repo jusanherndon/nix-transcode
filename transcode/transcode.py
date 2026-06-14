@@ -88,14 +88,25 @@ def options_with_probed_codec(
     return replace(options, video_codec=video_codec, subtitle_codecs=subtitle_codecs)
 
 
+def subtitle_codec_options(subtitle_codecs: tuple[str, ...] | None) -> dict[str, str]:
+    """Return ffmpeg codec options for all subtitle streams."""
+    if not subtitle_codecs:
+        return {"c:s": "copy"}
+    return {
+        f"c:s:{index}": "copy" if codec in {"ass", "ssa"} else "ass"
+        for index, codec in enumerate(subtitle_codecs)
+    }
+
+
 def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     """Build a python-ffmpeg ``FFmpeg`` job for Matroska-to-AV1/QSV transcoding.
 
     The job uses Intel Quick Sync Video's AV1 encoder (``av1_qsv``) with the
     10-bit ``p010le`` pixel format unless the input video stream is already AV1,
     in which case video is copied. Subtitle streams are copied if they are
-    already SSA/ASS, otherwise they are converted to ASS. It keeps all streams
-    from the source file (``-map 0``), copies audio and attachment streams
+    already SSA/ASS, otherwise they are converted to ASS. Each subtitle stream
+    gets an explicit codec option so every mapped subtitle stream is preserved.
+    It keeps all streams from the source file (``-map 0``), copies audio and attachment streams
     without re-encoding, preserves metadata and chapters, and writes a Matroska
     container.
     """
@@ -104,8 +115,6 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     ffmpeg.option("y" if options.overwrite else "n")
 
     copy_video = options.video_codec == "av1"
-    subtitle_codecs = options.subtitle_codecs or ()
-    copy_subtitles = all(codec in {"ass", "ssa"} for codec in subtitle_codecs)
     input_options = {}
     if options.hwaccel and not copy_video:
         input_options = {"hwaccel": "qsv", "hwaccel_output_format": "qsv"}
@@ -117,7 +126,7 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
         "map_chapters": "0",
         "c:v": "copy" if copy_video else "av1_qsv",
         "c:a": "copy",
-        "c:s": "copy" if copy_subtitles else "ass",
+        **subtitle_codec_options(options.subtitle_codecs),
         "c:t": "copy",
         "f": "matroska",
         "max_muxing_queue_size": "4096",

@@ -54,7 +54,7 @@ def test_build_ffmpeg_command_copies_aac_and_opus_audio(tmp_path: Path) -> None:
     input_file.write_text("not really video")
 
     command = build_ffmpeg_command(
-        TranscodeOptions(input_file=input_file, audio_codecs=("aac", "opus"))
+        TranscodeOptions(input_file=input_file, audio_codecs=("ac3", "opus"))
     )
 
     assert command[command.index("-c:a:0") + 1] == "copy"
@@ -70,8 +70,8 @@ def test_build_ffmpeg_command_converts_other_audio_to_opus(tmp_path: Path) -> No
         TranscodeOptions(input_file=input_file, audio_codecs=("dts", "ac3"))
     )
 
-    assert command[command.index("-c:a:0") + 1] == "libopus"
-    assert command[command.index("-c:a:1") + 1] == "libopus"
+    assert command[command.index("-c:a:0") + 1] == "aac"
+    assert command[command.index("-c:a:1") + 1] == "copy"
 
 
 def test_build_ffmpeg_command_converts_non_ass_subtitles(tmp_path: Path) -> None:

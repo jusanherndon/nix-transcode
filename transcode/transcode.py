@@ -118,26 +118,6 @@ def audio_codec_options(audio_codecs: tuple[str, ...] | None) -> dict[str, str]:
     }
 
 
-TEXT_SUBTITLE_CODECS = {
-    "ass",
-    "jacosub",
-    "microdvd",
-    "mov_text",
-    "mpl2",
-    "pjs",
-    "realtext",
-    "sami",
-    "ssa",
-    "stl",
-    "subrip",
-    "subviewer",
-    "subviewer1",
-    "text",
-    "vplayer",
-    "webvtt",
-}
-
-
 BITMAP_SUBTITLE_CODECS = {
     "dvb_subtitle",
     "dvd_subtitle",
@@ -154,8 +134,6 @@ def subtitle_codec_options(subtitle_codecs: tuple[str, ...] | None) -> dict[str,
         f"c:s:{index}": "copy"
         if codec in {"ass", "ssa"} or codec in BITMAP_SUBTITLE_CODECS
         else "ass"
-        if codec in TEXT_SUBTITLE_CODECS
-        else "copy"
         for index, codec in enumerate(subtitle_codecs)
     }
 

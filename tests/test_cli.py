@@ -115,18 +115,6 @@ def test_build_ffmpeg_command_copies_bitmap_subtitles(tmp_path: Path) -> None:
     assert command[command.index("-c:s:1") + 1] == "copy"
 
 
-def test_build_ffmpeg_command_copies_unknown_subtitles(tmp_path: Path) -> None:
-    """Unknown subtitle codecs are copied instead of risking an invalid transcode."""
-    input_file = tmp_path / "movie.mkv"
-    input_file.write_text("not really video")
-
-    command = build_ffmpeg_command(
-        TranscodeOptions(input_file=input_file, subtitle_codecs=("unknown_subtitle",))
-    )
-
-    assert command[command.index("-c:s:0") + 1] == "copy"
-
-
 def test_build_ffmpeg_command_preserves_multiple_mixed_subtitles(
     tmp_path: Path,
 ) -> None:

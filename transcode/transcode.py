@@ -88,12 +88,44 @@ def options_with_probed_codec(
     return replace(options, video_codec=video_codec, subtitle_codecs=subtitle_codecs)
 
 
+TEXT_SUBTITLE_CODECS = {
+    "ass",
+    "jacosub",
+    "microdvd",
+    "mov_text",
+    "mpl2",
+    "pjs",
+    "realtext",
+    "sami",
+    "ssa",
+    "stl",
+    "subrip",
+    "subviewer",
+    "subviewer1",
+    "text",
+    "vplayer",
+    "webvtt",
+}
+
+
+BITMAP_SUBTITLE_CODECS = {
+    "dvb_subtitle",
+    "dvd_subtitle",
+    "hdmv_pgs_subtitle",
+    "xsub",
+}
+
+
 def subtitle_codec_options(subtitle_codecs: tuple[str, ...] | None) -> dict[str, str]:
     """Return ffmpeg codec options for all subtitle streams."""
     if not subtitle_codecs:
         return {"c:s": "copy"}
     return {
-        f"c:s:{index}": "copy" if codec in {"ass", "ssa"} else "ass"
+        f"c:s:{index}": "copy"
+        if codec in {"ass", "ssa"} or codec in BITMAP_SUBTITLE_CODECS
+        else "ass"
+        if codec in TEXT_SUBTITLE_CODECS
+        else "copy"
         for index, codec in enumerate(subtitle_codecs)
     }
 

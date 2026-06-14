@@ -7,8 +7,13 @@ from pathlib import Path
 from click.testing import CliRunner
 
 import transcode.cli as cli
+import transcode.transcode as transcode_module
 from transcode.cli import main
-from transcode.transcode import TranscodeOptions, build_ffmpeg_command
+from transcode.transcode import (
+    TranscodeOptions,
+    build_ffmpeg_command,
+    probe_video_codec,
+)
 
 
 def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
@@ -23,6 +28,59 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert command[command.index("-c:a") + 1] == "copy"
     assert command[command.index("-c:s") + 1] == "copy"
     assert str(tmp_path / "movie.mkv") in command
+
+
+def test_build_ffmpeg_command_copies_av1_video(tmp_path: Path) -> None:
+    """AV1 inputs copy the video stream instead of re-encoding it."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    command = build_ffmpeg_command(
+        TranscodeOptions(input_file=input_file, video_codec="av1")
+    )
+
+    assert command[command.index("-c:v") + 1] == "copy"
+    assert "av1_qsv" not in command
+    assert "-vf" not in command
+    assert "-pix_fmt" not in command
+
+
+def test_probe_video_codec(tmp_path: Path, monkeypatch) -> None:
+    """Ffprobe JSON is parsed into a lowercase codec name."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    class FakeFFmpeg:
+        def __init__(self, executable: str) -> None:
+            assert executable == "ffprobe"
+            self.arguments = [executable]
+
+        def option(self, key: str, value: str) -> None:
+            self.arguments.extend([f"-{key}", value])
+
+        def input(self, path: str) -> None:
+            assert path == str(input_file)
+            self.arguments.extend(["-i", path])
+
+        def execute(self) -> bytes:
+            assert self.arguments == [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=codec_name",
+                "-of",
+                "json",
+                "-i",
+                str(input_file),
+            ]
+            return b'{"streams":[{"codec_name":"AV1"}]}'
+
+    monkeypatch.setattr(transcode_module, "FFmpeg", FakeFFmpeg)
+
+    assert probe_video_codec(input_file) == "av1"
 
 
 def test_cli_dry_run(tmp_path: Path) -> None:

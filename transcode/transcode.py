@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import shlex
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from ffmpeg.errors import FFmpegError
@@ -22,6 +23,8 @@ class TranscodeOptions:
     hwaccel: bool = True
     overwrite: bool = False
     ffmpeg_bin: str = "ffmpeg"
+    ffprobe_bin: str = "ffprobe"
+    video_codec: str | None = None
 
     def resolved_output(self) -> Path:
         """Return the requested output path, defaulting to a Matroska file."""
@@ -30,11 +33,43 @@ class TranscodeOptions:
         return self.input_file.with_name(f"{self.input_file.stem}.mkv")
 
 
+def probe_video_codec(input_file: Path, ffprobe_bin: str = "ffprobe") -> str | None:
+    """Return the first video stream codec name reported by ffprobe."""
+    ffprobe = FFmpeg(executable=ffprobe_bin)
+    ffprobe.option("v", "error")
+    ffprobe.option("select_streams", "v:0")
+    ffprobe.option("show_entries", "stream=codec_name")
+    ffprobe.option("of", "json")
+    ffprobe.input(str(input_file))
+
+    streams = json.loads(ffprobe.execute().decode()).get("streams", [])
+    if not streams:
+        return None
+    codec = streams[0].get("codec_name")
+    return codec.lower() if isinstance(codec, str) else None
+
+
+def options_with_probed_codec(
+    options: TranscodeOptions, *, strict: bool = True
+) -> TranscodeOptions:
+    """Return options populated with the input video codec from ffprobe."""
+    if options.video_codec is not None:
+        return options
+    try:
+        video_codec = probe_video_codec(options.input_file, options.ffprobe_bin)
+    except (OSError, FFmpegError, json.JSONDecodeError):
+        if strict:
+            raise
+        return options
+    return replace(options, video_codec=video_codec)
+
+
 def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     """Build a python-ffmpeg ``FFmpeg`` job for Matroska-to-AV1/QSV transcoding.
 
     The job uses Intel Quick Sync Video's AV1 encoder (``av1_qsv``) with the
-    10-bit ``p010le`` pixel format, keeps all streams from the source file
+    10-bit ``p010le`` pixel format unless the input video stream is already AV1,
+    in which case video is copied. It keeps all streams from the source file
     (``-map 0``), copies audio, subtitle, and attachment streams without
     re-encoding, preserves metadata and chapters, and writes a Matroska
     container.
@@ -43,8 +78,9 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     ffmpeg.option("hide_banner")
     ffmpeg.option("y" if options.overwrite else "n")
 
+    copy_video = options.video_codec == "av1"
     input_options = {}
-    if options.hwaccel:
+    if options.hwaccel and not copy_video:
         input_options = {"hwaccel": "qsv", "hwaccel_output_format": "qsv"}
 
     ffmpeg.input(str(options.input_file), input_options)
@@ -52,20 +88,25 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
         "map": "0",
         "map_metadata": "0",
         "map_chapters": "0",
-        "c:v": "av1_qsv",
-        "preset": options.preset,
-        "global_quality": options.quality,
-        "b:v": "0",
+        "c:v": "copy" if copy_video else "av1_qsv",
         "c:a": "copy",
         "c:s": "copy",
         "c:t": "copy",
         "f": "matroska",
         "max_muxing_queue_size": "4096",
     }
-    if options.hwaccel:
-        output_options["vf"] = "vpp_qsv=format=p010le"
-    else:
-        output_options["pix_fmt"] = "p010le"
+    if not copy_video:
+        output_options.update(
+            {
+                "preset": options.preset,
+                "global_quality": options.quality,
+                "b:v": "0",
+            }
+        )
+        if options.hwaccel:
+            output_options["vf"] = "vpp_qsv=format=p010le"
+        else:
+            output_options["pix_fmt"] = "p010le"
 
     ffmpeg.output(str(options.resolved_output()), output_options)
     return ffmpeg
@@ -90,7 +131,7 @@ def transcode(options: TranscodeOptions) -> int:
 
     output_existed = output_file.exists()
     try:
-        build_ffmpeg(options).execute()
+        build_ffmpeg(options_with_probed_codec(options)).execute()
     except FFmpegError:
         if output_file.exists() and (options.overwrite or not output_existed):
             output_file.unlink()

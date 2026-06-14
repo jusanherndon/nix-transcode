@@ -5,14 +5,16 @@ A small Python CLI that shells out to `ffmpeg` to transcode video to AV1 with In
 The default command:
 
 - writes a Matroska (`.mkv`) container
-- encodes video with Intel's AV1 QSV encoder using 10-bit `p010le`
+- probes the input video codec with `ffprobe`
+- encodes video with Intel's AV1 QSV encoder using 10-bit `p010le`, unless the input is already AV1
+- copies AV1 video streams without re-encoding
 - copies audio streams without re-encoding
 - copies subtitle streams without re-encoding
 - preserves metadata and chapters
 
 ## Requirements
 
-- `ffmpeg` available on `PATH`
+- `ffmpeg` and `ffprobe` available on `PATH`
 - An Intel GPU/driver stack with `av1_qsv` support
 
 Check encoder availability with:
@@ -47,7 +49,7 @@ transcode input.mkv --no-hwaccel
 transcode input.mkv --overwrite
 ```
 
-`--quality` maps to ffmpeg's `-global_quality` for `av1_qsv`; lower values preserve more quality but create larger files. The default is `18`.
+`--quality` maps to ffmpeg's `-global_quality` for `av1_qsv`; lower values preserve more quality but create larger files. The default is `18`. If the first video stream is already AV1, the video stream is copied and encoder quality/preset options are not used.
 
 ## Example ffmpeg command
 

@@ -12,6 +12,7 @@ from transcode.transcode import (
     TranscodeOptions,
     build_ffmpeg_command,
     format_command,
+    options_with_probed_codec,
     transcode,
 )
 
@@ -138,7 +139,8 @@ def main(
         ]
 
         for index, options in enumerate(jobs):
-            command = format_command(build_ffmpeg_command(options))
+            display_options = options_with_probed_codec(options, strict=False)
+            command = format_command(build_ffmpeg_command(display_options))
             click.echo(command)
             if dry_run:
                 continue
@@ -168,7 +170,8 @@ def main(
         hwaccel=hwaccel,
         overwrite=overwrite,
     )
-    command = format_command(build_ffmpeg_command(options))
+    display_options = options_with_probed_codec(options, strict=False)
+    command = format_command(build_ffmpeg_command(display_options))
 
     if dry_run:
         click.echo(command)

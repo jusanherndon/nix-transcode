@@ -8,6 +8,7 @@ from pathlib import Path
 import click
 
 from transcode import __version__
+from transcode.directory_run import DirectoryTranscodeSettings, run_directory_transcode
 from transcode.transcode import (
     TranscodeOptions,
     build_ffmpeg_command,
@@ -17,21 +18,6 @@ from transcode.transcode import (
 )
 
 DEFAULT_DIRECTORY_WAIT_SECONDS = 300
-TRANSCODED_PREFIX = "transcoded_"
-
-
-def directory_output_for(input_file: Path) -> Path:
-    """Return the output path used for directory transcodes."""
-    return input_file.with_name(f"{TRANSCODED_PREFIX}{input_file.stem}.mkv")
-
-
-def directory_inputs(input_directory: Path) -> list[Path]:
-    """Return regular files in a directory, excluding previous transcode outputs."""
-    return [
-        path
-        for path in sorted(input_directory.iterdir())
-        if path.is_file() and not path.name.startswith(TRANSCODED_PREFIX)
-    ]
 
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
@@ -122,38 +108,23 @@ def main(
         if output_file is not None:
             raise click.UsageError("--output cannot be used with --input-directory")
 
-        source_files = directory_inputs(input_directory)
-        if not source_files:
-            raise click.UsageError(f"no files found in {input_directory}")
-
-        jobs = [
-            TranscodeOptions(
-                input_file=source_file,
-                output_file=directory_output_for(source_file),
+        result = run_directory_transcode(
+            input_directory,
+            DirectoryTranscodeSettings(
                 quality=quality,
                 preset=preset,
                 hwaccel=hwaccel,
                 overwrite=overwrite,
-            )
-            for source_file in source_files
-        ]
-
-        for index, options in enumerate(jobs):
-            display_options = options_with_probed_codec(options, strict=False)
-            command = format_command(build_ffmpeg_command(display_options))
-            click.echo(command)
-            if dry_run:
-                continue
-
-            exit_code = transcode(options)
-            if exit_code != 0:
-                raise click.exceptions.Exit(exit_code)
-
-            if index < len(jobs) - 1:
-                click.echo(
-                    f"Waiting {wait_seconds} seconds before the next transcode..."
-                )
-                time.sleep(wait_seconds)
+            ),
+            wait_seconds=wait_seconds,
+            dry_run=dry_run,
+            output=click.echo,
+            wait=time.sleep,
+        )
+        if result.status == "no_eligible_input_files":
+            raise click.UsageError(f"no files found in {result.input_directory}")
+        if result.status == "failed":
+            raise click.exceptions.Exit(result.exit_code)
         return
 
     source_file = input_file or input_path

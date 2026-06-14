@@ -7,6 +7,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 import transcode.cli as cli
+import transcode.directory_run as directory_run
 import transcode.transcode as transcode_module
 from transcode.cli import main
 from transcode.transcode import (
@@ -236,7 +237,7 @@ def test_cli_input_directory_waits_between_transcodes(
         transcoded_files.append(options.input_file)
         return 0
 
-    monkeypatch.setattr(cli, "transcode", fake_transcode)
+    monkeypatch.setattr(directory_run, "transcode", fake_transcode)
     monkeypatch.setattr(cli.time, "sleep", slept_seconds.append)
 
     runner = CliRunner()

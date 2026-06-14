@@ -1,6 +1,6 @@
 # nix-transcode Context
 
-A small CLI context for transcoding media files to AV1/QSV Matroska outputs while preserving non-video streams.
+A small CLI context for transcoding media files to AV1/QSV Matroska outputs while preserving non-video streams if in the correct codec.
 
 ## Language
 

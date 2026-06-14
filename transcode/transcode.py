@@ -96,7 +96,7 @@ def options_with_probed_codec(
             subtitle_codecs = probe_subtitle_codecs(
                 options.input_file, options.ffprobe_bin
             )
-    except (OSError, FFmpegError, json.JSONDecodeError):
+    except OSError, FFmpegError, json.JSONDecodeError:
         if strict:
             raise
         return options
@@ -113,7 +113,7 @@ def audio_codec_options(audio_codecs: tuple[str, ...] | None) -> dict[str, str]:
     if not audio_codecs:
         return {"c:a": "copy"}
     return {
-        f"c:a:{index}": "copy" if codec in {"ac3", "opus"} else "aac"
+        f"c:a:{index}": "copy" if codec in {"ac3", "aac", "opus"} else "aac"
         for index, codec in enumerate(audio_codecs)
     }
 

@@ -9,7 +9,8 @@ The default command:
 - encodes video with Intel's AV1 QSV encoder using 10-bit `p010le`, unless the input is already AV1
 - copies AV1 video streams without re-encoding
 - copies audio streams without re-encoding
-- copies subtitle streams without re-encoding
+- copies subtitle streams without re-encoding when they are already SSA/ASS
+- converts other subtitle streams to ASS
 - preserves metadata and chapters
 
 ## Requirements
@@ -49,7 +50,7 @@ transcode input.mkv --no-hwaccel
 transcode input.mkv --overwrite
 ```
 
-`--quality` maps to ffmpeg's `-global_quality` for `av1_qsv`; lower values preserve more quality but create larger files. The default is `18`. If the first video stream is already AV1, the video stream is copied and encoder quality/preset options are not used.
+`--quality` maps to ffmpeg's `-global_quality` for `av1_qsv`; lower values preserve more quality but create larger files. The default is `18`. If the first video stream is already AV1, the video stream is copied and encoder quality/preset options are not used. Subtitle streams are copied when all subtitles are already SSA/ASS; otherwise ffmpeg is asked to convert subtitles to ASS.
 
 ## Example ffmpeg command
 
@@ -57,6 +58,6 @@ transcode input.mkv --overwrite
 ffmpeg -hide_banner -n -hwaccel qsv -hwaccel_output_format qsv -i input.mkv \
   -map 0 -map_metadata 0 -map_chapters 0 \
   -c:v av1_qsv -preset slow -global_quality 18 -b:v 0 \
-  -c:a copy -c:s copy -c:t copy \
+  -c:a copy -c:s ass -c:t copy \
   -f matroska -max_muxing_queue_size 4096 -vf vpp_qsv=format=p010le transcoded_input.mkv
 ```

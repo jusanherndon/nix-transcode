@@ -12,6 +12,7 @@ from transcode.cli import main
 from transcode.transcode import (
     TranscodeOptions,
     build_ffmpeg_command,
+    probe_subtitle_codecs,
     probe_video_codec,
 )
 
@@ -43,6 +44,30 @@ def test_build_ffmpeg_command_copies_av1_video(tmp_path: Path) -> None:
     assert "av1_qsv" not in command
     assert "-vf" not in command
     assert "-pix_fmt" not in command
+
+
+def test_build_ffmpeg_command_converts_non_ass_subtitles(tmp_path: Path) -> None:
+    """Non-SSA/ASS subtitle streams are converted to ASS."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    command = build_ffmpeg_command(
+        TranscodeOptions(input_file=input_file, subtitle_codecs=("subrip",))
+    )
+
+    assert command[command.index("-c:s") + 1] == "ass"
+
+
+def test_build_ffmpeg_command_copies_ass_subtitles(tmp_path: Path) -> None:
+    """SSA/ASS subtitle streams are copied."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    command = build_ffmpeg_command(
+        TranscodeOptions(input_file=input_file, subtitle_codecs=("ssa", "ass"))
+    )
+
+    assert command[command.index("-c:s") + 1] == "copy"
 
 
 def test_probe_video_codec(tmp_path: Path, monkeypatch) -> None:
@@ -81,6 +106,33 @@ def test_probe_video_codec(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(transcode_module, "FFmpeg", FakeFFmpeg)
 
     assert probe_video_codec(input_file) == "av1"
+
+
+def test_probe_subtitle_codecs(tmp_path: Path, monkeypatch) -> None:
+    """Ffprobe subtitle JSON is parsed into lowercase codec names."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    class FakeFFmpeg:
+        def __init__(self, executable: str) -> None:
+            assert executable == "ffprobe"
+            self.arguments = [executable]
+
+        def option(self, key: str, value: str) -> None:
+            self.arguments.extend([f"-{key}", value])
+
+        def input(self, path: str) -> None:
+            assert path == str(input_file)
+            self.arguments.extend(["-i", path])
+
+        def execute(self) -> bytes:
+            assert "-select_streams" in self.arguments
+            assert self.arguments[self.arguments.index("-select_streams") + 1] == "s"
+            return b'{"streams":[{"codec_name":"SubRip"},{"codec_name":"ASS"}]}'
+
+    monkeypatch.setattr(transcode_module, "FFmpeg", FakeFFmpeg)
+
+    assert probe_subtitle_codecs(input_file) == ("subrip", "ass")
 
 
 def test_cli_dry_run(tmp_path: Path) -> None:

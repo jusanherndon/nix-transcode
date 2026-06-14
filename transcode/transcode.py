@@ -25,6 +25,7 @@ class TranscodeOptions:
     ffmpeg_bin: str = "ffmpeg"
     ffprobe_bin: str = "ffprobe"
     video_codec: str | None = None
+    subtitle_codecs: tuple[str, ...] | None = None
 
     def resolved_output(self) -> Path:
         """Return the requested output path, defaulting to a Matroska file."""
@@ -33,35 +34,58 @@ class TranscodeOptions:
         return self.input_file.with_name(f"{self.input_file.stem}.mkv")
 
 
-def probe_video_codec(input_file: Path, ffprobe_bin: str = "ffprobe") -> str | None:
-    """Return the first video stream codec name reported by ffprobe."""
+def probe_stream_codecs(
+    input_file: Path, stream_selector: str, ffprobe_bin: str = "ffprobe"
+) -> tuple[str, ...]:
+    """Return stream codec names reported by ffprobe for a stream selector."""
     ffprobe = FFmpeg(executable=ffprobe_bin)
     ffprobe.option("v", "error")
-    ffprobe.option("select_streams", "v:0")
+    ffprobe.option("select_streams", stream_selector)
     ffprobe.option("show_entries", "stream=codec_name")
     ffprobe.option("of", "json")
     ffprobe.input(str(input_file))
 
     streams = json.loads(ffprobe.execute().decode()).get("streams", [])
-    if not streams:
-        return None
-    codec = streams[0].get("codec_name")
-    return codec.lower() if isinstance(codec, str) else None
+    return tuple(
+        codec.lower()
+        for stream in streams
+        if isinstance((codec := stream.get("codec_name")), str)
+    )
+
+
+def probe_video_codec(input_file: Path, ffprobe_bin: str = "ffprobe") -> str | None:
+    """Return the first video stream codec name reported by ffprobe."""
+    codecs = probe_stream_codecs(input_file, "v:0", ffprobe_bin)
+    return codecs[0] if codecs else None
+
+
+def probe_subtitle_codecs(
+    input_file: Path, ffprobe_bin: str = "ffprobe"
+) -> tuple[str, ...]:
+    """Return all subtitle stream codec names reported by ffprobe."""
+    return probe_stream_codecs(input_file, "s", ffprobe_bin)
 
 
 def options_with_probed_codec(
     options: TranscodeOptions, *, strict: bool = True
 ) -> TranscodeOptions:
     """Return options populated with the input video codec from ffprobe."""
-    if options.video_codec is not None:
+    if options.video_codec is not None and options.subtitle_codecs is not None:
         return options
     try:
-        video_codec = probe_video_codec(options.input_file, options.ffprobe_bin)
+        video_codec = options.video_codec
+        if video_codec is None:
+            video_codec = probe_video_codec(options.input_file, options.ffprobe_bin)
+        subtitle_codecs = options.subtitle_codecs
+        if subtitle_codecs is None:
+            subtitle_codecs = probe_subtitle_codecs(
+                options.input_file, options.ffprobe_bin
+            )
     except (OSError, FFmpegError, json.JSONDecodeError):
         if strict:
             raise
         return options
-    return replace(options, video_codec=video_codec)
+    return replace(options, video_codec=video_codec, subtitle_codecs=subtitle_codecs)
 
 
 def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
@@ -69,9 +93,10 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
 
     The job uses Intel Quick Sync Video's AV1 encoder (``av1_qsv``) with the
     10-bit ``p010le`` pixel format unless the input video stream is already AV1,
-    in which case video is copied. It keeps all streams from the source file
-    (``-map 0``), copies audio, subtitle, and attachment streams without
-    re-encoding, preserves metadata and chapters, and writes a Matroska
+    in which case video is copied. Subtitle streams are copied if they are
+    already SSA/ASS, otherwise they are converted to ASS. It keeps all streams
+    from the source file (``-map 0``), copies audio and attachment streams
+    without re-encoding, preserves metadata and chapters, and writes a Matroska
     container.
     """
     ffmpeg = FFmpeg(executable=options.ffmpeg_bin)
@@ -79,6 +104,8 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     ffmpeg.option("y" if options.overwrite else "n")
 
     copy_video = options.video_codec == "av1"
+    subtitle_codecs = options.subtitle_codecs or ()
+    copy_subtitles = all(codec in {"ass", "ssa"} for codec in subtitle_codecs)
     input_options = {}
     if options.hwaccel and not copy_video:
         input_options = {"hwaccel": "qsv", "hwaccel_output_format": "qsv"}
@@ -90,7 +117,7 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
         "map_chapters": "0",
         "c:v": "copy" if copy_video else "av1_qsv",
         "c:a": "copy",
-        "c:s": "copy",
+        "c:s": "copy" if copy_subtitles else "ass",
         "c:t": "copy",
         "f": "matroska",
         "max_muxing_queue_size": "4096",

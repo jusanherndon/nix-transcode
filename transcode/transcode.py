@@ -167,7 +167,7 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     10-bit ``p010le`` pixel format unless the input video stream is already AV1,
     in which case video is copied. AAC and Opus audio streams are copied; other
     audio streams are converted to Opus while preserving their channel layout
-    when supported by ffmpeg/libopus. Subtitle streams are copied if they are
+    when supported by ffmpeg/aac. Subtitle streams are copied if they are
     already SSA/ASS or bitmap-based, otherwise text subtitles are converted to
     ASS. Each audio and subtitle stream gets an explicit codec option so every
     mapped stream is preserved. It keeps all streams from the source file

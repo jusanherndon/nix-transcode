@@ -59,6 +59,6 @@ transcode input.mkv --overwrite
 ffmpeg -hide_banner -n -hwaccel qsv -hwaccel_output_format qsv -i input.mkv \
   -map 0 -map_metadata 0 -map_chapters 0 \
   -c:v av1_qsv -preset slow -global_quality 18 -b:v 0 \
-  -c:a:0 libopus -c:s:0 ass -c:t copy \
+  -c:a:0 aac -c:s:0 ass -c:t copy \
   -f matroska -max_muxing_queue_size 4096 -vf vpp_qsv=format=p010le transcoded_input.mkv
 ```

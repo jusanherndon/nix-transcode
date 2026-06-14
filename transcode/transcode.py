@@ -96,7 +96,7 @@ def options_with_probed_codec(
             subtitle_codecs = probe_subtitle_codecs(
                 options.input_file, options.ffprobe_bin
             )
-    except OSError, FFmpegError, json.JSONDecodeError:
+    except (OSError, FFmpegError, json.JSONDecodeError):
         if strict:
             raise
         return options

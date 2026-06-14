@@ -60,7 +60,9 @@ def probe_video_codec(input_file: Path, ffprobe_bin: str = "ffprobe") -> str | N
     return codecs[0] if codecs else None
 
 
-def probe_audio_codecs(input_file: Path, ffprobe_bin: str = "ffprobe") -> tuple[str, ...]:
+def probe_audio_codecs(
+    input_file: Path, ffprobe_bin: str = "ffprobe"
+) -> tuple[str, ...]:
     """Return all audio stream codec names reported by ffprobe."""
     return probe_stream_codecs(input_file, "a", ffprobe_bin)
 
@@ -94,7 +96,7 @@ def options_with_probed_codec(
             subtitle_codecs = probe_subtitle_codecs(
                 options.input_file, options.ffprobe_bin
             )
-    except (OSError, FFmpegError, json.JSONDecodeError):
+    except OSError, FFmpegError, json.JSONDecodeError:
         if strict:
             raise
         return options
@@ -111,7 +113,7 @@ def audio_codec_options(audio_codecs: tuple[str, ...] | None) -> dict[str, str]:
     if not audio_codecs:
         return {"c:a": "copy"}
     return {
-        f"c:a:{index}": "copy" if codec in {"aac", "opus"} else "libopus"
+        f"c:a:{index}": "copy" if codec in {"ac3", "opus"} else "aac"
         for index, codec in enumerate(audio_codecs)
     }
 

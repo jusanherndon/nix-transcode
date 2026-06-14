@@ -91,8 +91,9 @@ def main(
 ) -> None:
     """Transcode a Matroska input file to AV1 in a Matroska container using Intel QSV.
 
-    Video is encoded with ffmpeg's av1_qsv encoder. Audio, subtitle, and
-    attachment streams are copied from the source without re-encoding.
+    Video is encoded with ffmpeg's av1_qsv encoder. AAC/Opus audio streams are
+    copied, other audio streams are converted to Opus, supported text subtitles
+    are converted to ASS, and attachment streams are copied.
     """
     input_sources = [
         source

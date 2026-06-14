@@ -25,6 +25,7 @@ class TranscodeOptions:
     ffmpeg_bin: str = "ffmpeg"
     ffprobe_bin: str = "ffprobe"
     video_codec: str | None = None
+    audio_codecs: tuple[str, ...] | None = None
     subtitle_codecs: tuple[str, ...] | None = None
 
     def resolved_output(self) -> Path:
@@ -59,6 +60,11 @@ def probe_video_codec(input_file: Path, ffprobe_bin: str = "ffprobe") -> str | N
     return codecs[0] if codecs else None
 
 
+def probe_audio_codecs(input_file: Path, ffprobe_bin: str = "ffprobe") -> tuple[str, ...]:
+    """Return all audio stream codec names reported by ffprobe."""
+    return probe_stream_codecs(input_file, "a", ffprobe_bin)
+
+
 def probe_subtitle_codecs(
     input_file: Path, ffprobe_bin: str = "ffprobe"
 ) -> tuple[str, ...]:
@@ -70,12 +76,19 @@ def options_with_probed_codec(
     options: TranscodeOptions, *, strict: bool = True
 ) -> TranscodeOptions:
     """Return options populated with the input video codec from ffprobe."""
-    if options.video_codec is not None and options.subtitle_codecs is not None:
+    if (
+        options.video_codec is not None
+        and options.audio_codecs is not None
+        and options.subtitle_codecs is not None
+    ):
         return options
     try:
         video_codec = options.video_codec
         if video_codec is None:
             video_codec = probe_video_codec(options.input_file, options.ffprobe_bin)
+        audio_codecs = options.audio_codecs
+        if audio_codecs is None:
+            audio_codecs = probe_audio_codecs(options.input_file, options.ffprobe_bin)
         subtitle_codecs = options.subtitle_codecs
         if subtitle_codecs is None:
             subtitle_codecs = probe_subtitle_codecs(
@@ -85,7 +98,22 @@ def options_with_probed_codec(
         if strict:
             raise
         return options
-    return replace(options, video_codec=video_codec, subtitle_codecs=subtitle_codecs)
+    return replace(
+        options,
+        video_codec=video_codec,
+        audio_codecs=audio_codecs,
+        subtitle_codecs=subtitle_codecs,
+    )
+
+
+def audio_codec_options(audio_codecs: tuple[str, ...] | None) -> dict[str, str]:
+    """Return ffmpeg codec options for all audio streams."""
+    if not audio_codecs:
+        return {"c:a": "copy"}
+    return {
+        f"c:a:{index}": "copy" if codec in {"aac", "opus"} else "libopus"
+        for index, codec in enumerate(audio_codecs)
+    }
 
 
 TEXT_SUBTITLE_CODECS = {
@@ -135,11 +163,14 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
 
     The job uses Intel Quick Sync Video's AV1 encoder (``av1_qsv``) with the
     10-bit ``p010le`` pixel format unless the input video stream is already AV1,
-    in which case video is copied. Subtitle streams are copied if they are
-    already SSA/ASS, otherwise they are converted to ASS. Each subtitle stream
-    gets an explicit codec option so every mapped subtitle stream is preserved.
-    It keeps all streams from the source file (``-map 0``), copies audio and attachment streams
-    without re-encoding, preserves metadata and chapters, and writes a Matroska
+    in which case video is copied. AAC and Opus audio streams are copied; other
+    audio streams are converted to Opus while preserving their channel layout
+    when supported by ffmpeg/libopus. Subtitle streams are copied if they are
+    already SSA/ASS or bitmap-based, otherwise text subtitles are converted to
+    ASS. Each audio and subtitle stream gets an explicit codec option so every
+    mapped stream is preserved. It keeps all streams from the source file
+    (``-map 0``), copies attachment streams without re-encoding, preserves
+    metadata and chapters, and writes a Matroska
     container.
     """
     ffmpeg = FFmpeg(executable=options.ffmpeg_bin)
@@ -157,7 +188,7 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
         "map_metadata": "0",
         "map_chapters": "0",
         "c:v": "copy" if copy_video else "av1_qsv",
-        "c:a": "copy",
+        **audio_codec_options(options.audio_codecs),
         **subtitle_codec_options(options.subtitle_codecs),
         "c:t": "copy",
         "f": "matroska",

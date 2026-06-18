@@ -11,6 +11,7 @@ from transcode.transcode import (
     TranscodeOptions,
     build_ffmpeg_command,
     format_command,
+    media_stream_codec_options_all_copy,
     options_with_probed_codec,
     transcode,
 )
@@ -144,7 +145,9 @@ def run_directory_transcode(
                 exit_code=exit_code,
             )
 
-        if index < len(jobs) - 1:
+        if index < len(jobs) - 1 and not media_stream_codec_options_all_copy(
+            display_options
+        ):
             output(f"Waiting {wait_seconds} seconds before the next transcode...")
             wait(wait_seconds)
 

@@ -138,6 +138,18 @@ def subtitle_codec_options(subtitle_codecs: tuple[str, ...] | None) -> dict[str,
     }
 
 
+def media_stream_codec_options_all_copy(options: TranscodeOptions) -> bool:
+    """Return whether video, audio, and subtitle codec options all copy streams."""
+    return (
+        options.video_codec == "av1"
+        and all(value == "copy" for value in audio_codec_options(options.audio_codecs).values())
+        and all(
+            value == "copy"
+            for value in subtitle_codec_options(options.subtitle_codecs).values()
+        )
+    )
+
+
 def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     """Build a python-ffmpeg ``FFmpeg`` job for Matroska-to-AV1/QSV transcoding.
 

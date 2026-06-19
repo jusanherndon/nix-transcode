@@ -5,6 +5,7 @@
 from pathlib import Path
 
 from click.testing import CliRunner
+from ffmpeg.errors import FFmpegError
 
 import transcode.cli as cli
 import transcode.directory_run as directory_run
@@ -283,6 +284,37 @@ def test_probe_subtitle_codecs(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(transcode_module, "FFmpeg", FakeFFmpeg)
 
     assert probe_subtitle_codecs(input_file) == ("subrip", "ass")
+
+
+def test_transcode_writes_ffmpeg_errors_to_stderr(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """FFmpeg failures are printed instead of being silently converted to exit 1."""
+    input_file = tmp_path / "movie.mkv"
+    output_file = tmp_path / "movie-out.mkv"
+    input_file.write_text("not really video")
+
+    class FailingFFmpeg:
+        def execute(self) -> bytes:
+            raise FFmpegError("encoder exploded", ["ffmpeg", "..."])
+
+    monkeypatch.setattr(
+        transcode_module, "build_ffmpeg", lambda _options: FailingFFmpeg()
+    )
+
+    exit_code = transcode_module.transcode(
+        TranscodeOptions(
+            input_file=input_file,
+            output_file=output_file,
+            video_codec="h264",
+            video_codecs=("h264",),
+            audio_codecs=(),
+            subtitle_codecs=(),
+        )
+    )
+
+    assert exit_code == 1
+    assert "encoder exploded" in capsys.readouterr().err
 
 
 def test_cli_dry_run(tmp_path: Path) -> None:

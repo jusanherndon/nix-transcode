@@ -128,11 +128,7 @@ def options_with_probed_codec(
 
 def video_streams_to_drop(video_codecs: tuple[str, ...] | None) -> tuple[int, ...]:
     """Return video stream indexes that should be dropped from the output."""
-    if (
-        video_codecs is None
-        or len(video_codecs) != 2
-        or video_codecs.count("mjpeg") != 1
-    ):
+    if video_codecs is None or video_codecs.count("mjpeg") != 1:
         return ()
     return tuple(index for index, codec in enumerate(video_codecs) if codec == "mjpeg")
 
@@ -199,7 +195,8 @@ def media_stream_codec_options_all_copy(options: TranscodeOptions) -> bool:
         )
         == "av1"
         and all(
-            value == "copy" for value in audio_codec_options(options.audio_codecs).values()
+            value == "copy"
+            for value in audio_codec_options(options.audio_codecs).values()
         )
         and all(
             value == "copy"

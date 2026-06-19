@@ -25,6 +25,7 @@ class TranscodeOptions:
     ffmpeg_bin: str = "ffmpeg"
     ffprobe_bin: str = "ffprobe"
     video_codec: str | None = None
+    video_codecs: tuple[str, ...] | None = None
     audio_codecs: tuple[str, ...] | None = None
     subtitle_codecs: tuple[str, ...] | None = None
 
@@ -54,9 +55,16 @@ def probe_stream_codecs(
     )
 
 
+def probe_video_codecs(
+    input_file: Path, ffprobe_bin: str = "ffprobe"
+) -> tuple[str, ...]:
+    """Return all video stream codec names reported by ffprobe."""
+    return probe_stream_codecs(input_file, "v", ffprobe_bin)
+
+
 def probe_video_codec(input_file: Path, ffprobe_bin: str = "ffprobe") -> str | None:
     """Return the first video stream codec name reported by ffprobe."""
-    codecs = probe_stream_codecs(input_file, "v:0", ffprobe_bin)
+    codecs = probe_video_codecs(input_file, ffprobe_bin)
     return codecs[0] if codecs else None
 
 
@@ -80,14 +88,23 @@ def options_with_probed_codec(
     """Return options populated with the input video codec from ffprobe."""
     if (
         options.video_codec is not None
+        and options.video_codecs is not None
         and options.audio_codecs is not None
         and options.subtitle_codecs is not None
     ):
         return options
     try:
+        video_codecs = options.video_codecs
+        if video_codecs is None:
+            if options.video_codec is None:
+                video_codecs = probe_video_codecs(
+                    options.input_file, options.ffprobe_bin
+                )
+            else:
+                video_codecs = (options.video_codec,)
         video_codec = options.video_codec
         if video_codec is None:
-            video_codec = probe_video_codec(options.input_file, options.ffprobe_bin)
+            video_codec = primary_video_codec(video_codecs)
         audio_codecs = options.audio_codecs
         if audio_codecs is None:
             audio_codecs = probe_audio_codecs(options.input_file, options.ffprobe_bin)
@@ -103,9 +120,44 @@ def options_with_probed_codec(
     return replace(
         options,
         video_codec=video_codec,
+        video_codecs=video_codecs,
         audio_codecs=audio_codecs,
         subtitle_codecs=subtitle_codecs,
     )
+
+
+def video_streams_to_drop(video_codecs: tuple[str, ...] | None) -> tuple[int, ...]:
+    """Return video stream indexes that should be dropped from the output."""
+    if (
+        video_codecs is None
+        or len(video_codecs) != 2
+        or video_codecs.count("mjpeg") != 1
+    ):
+        return ()
+    return tuple(index for index, codec in enumerate(video_codecs) if codec == "mjpeg")
+
+
+def primary_video_codec(video_codecs: tuple[str, ...] | None) -> str | None:
+    """Return the codec of the first video stream that will be kept."""
+    if not video_codecs:
+        return None
+    dropped_indexes = set(video_streams_to_drop(video_codecs))
+    return next(
+        (
+            codec
+            for index, codec in enumerate(video_codecs)
+            if index not in dropped_indexes
+        ),
+        video_codecs[0],
+    )
+
+
+def output_map_options(video_codecs: tuple[str, ...] | None) -> str | list[str]:
+    """Return ffmpeg map options, excluding droppable video streams."""
+    dropped_video_streams = video_streams_to_drop(video_codecs)
+    if not dropped_video_streams:
+        return "0"
+    return ["0", *(f"-0:v:{index}" for index in dropped_video_streams)]
 
 
 def audio_codec_options(audio_codecs: tuple[str, ...] | None) -> dict[str, str]:
@@ -141,8 +193,14 @@ def subtitle_codec_options(subtitle_codecs: tuple[str, ...] | None) -> dict[str,
 def media_stream_codec_options_all_copy(options: TranscodeOptions) -> bool:
     """Return whether video, audio, and subtitle codec options all copy streams."""
     return (
-        options.video_codec == "av1"
-        and all(value == "copy" for value in audio_codec_options(options.audio_codecs).values())
+        primary_video_codec(
+            options.video_codecs
+            or ((options.video_codec,) if options.video_codec else None)
+        )
+        == "av1"
+        and all(
+            value == "copy" for value in audio_codec_options(options.audio_codecs).values()
+        )
         and all(
             value == "copy"
             for value in subtitle_codec_options(options.subtitle_codecs).values()
@@ -154,29 +212,34 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     """Build a python-ffmpeg ``FFmpeg`` job for Matroska-to-AV1/QSV transcoding.
 
     The job uses Intel Quick Sync Video's AV1 encoder (``av1_qsv``) with the
-    10-bit ``p010le`` pixel format unless the input video stream is already AV1,
-    in which case video is copied. AAC and Opus audio streams are copied; other
+    10-bit ``p010le`` pixel format unless the kept input video stream is already
+    AV1, in which case video is copied. AAC and Opus audio streams are copied;
+    other
     audio streams are converted to Opus while preserving their channel layout
     when supported by ffmpeg/aac. Subtitle streams are copied if they are
     already SSA/ASS or bitmap-based, otherwise text subtitles are converted to
     ASS. Each audio and subtitle stream gets an explicit codec option so every
     mapped stream is preserved. It keeps all streams from the source file
-    (``-map 0``), copies attachment streams without re-encoding, preserves
-    metadata and chapters, and writes a Matroska
+    (``-map 0``), except for an MJPEG video stream when it is paired with one
+    other video stream. It copies attachment streams without re-encoding,
+    preserves metadata and chapters, and writes a Matroska
     container.
     """
     ffmpeg = FFmpeg(executable=options.ffmpeg_bin)
     ffmpeg.option("hide_banner")
     ffmpeg.option("y" if options.overwrite else "n")
 
-    copy_video = options.video_codec == "av1"
+    video_codecs = options.video_codecs or (
+        (options.video_codec,) if options.video_codec else None
+    )
+    copy_video = primary_video_codec(video_codecs) == "av1"
     input_options = {}
     if options.hwaccel and not copy_video:
         input_options = {"hwaccel": "qsv", "hwaccel_output_format": "qsv"}
 
     ffmpeg.input(str(options.input_file), input_options)
     output_options = {
-        "map": "0",
+        "map": output_map_options(video_codecs),
         "map_metadata": "0",
         "map_chapters": "0",
         "c:v": "copy" if copy_video else "av1_qsv",

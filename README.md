@@ -5,9 +5,10 @@ A small Python CLI that shells out to `ffmpeg` to transcode video to AV1 with In
 The default command:
 
 - writes a Matroska (`.mkv`) container
-- probes the input video codec with `ffprobe`
-- encodes video with Intel's AV1 QSV encoder using 10-bit `p010le`, unless the input is already AV1
+- probes the input video codecs with `ffprobe`
+- encodes video with Intel's AV1 QSV encoder using 10-bit `p010le`, unless the kept input video is already AV1
 - copies AV1 video streams without re-encoding
+- drops an MJPEG video stream when it is one of exactly two video streams in the container
 - copies AAC and Opus audio streams without re-encoding
 - converts other audio streams to Opus while preserving channel layouts such as 5.1 when supported by ffmpeg/libopus
 - copies subtitle streams without re-encoding when they are already SSA/ASS
@@ -51,7 +52,7 @@ transcode input.mkv --no-hwaccel
 transcode input.mkv --overwrite
 ```
 
-`--quality` maps to ffmpeg's `-global_quality` for `av1_qsv`; lower values preserve more quality but create larger files. The default is `18`. If the first video stream is already AV1, the video stream is copied and encoder quality/preset options are not used. All audio streams are mapped with `-map 0`; each AAC/Opus audio stream is copied, and each other audio stream is converted to Opus. Surround layouts such as 5.1 are not downmixed by this tool. All subtitle streams are mapped with `-map 0`; each SSA/ASS or bitmap subtitle stream is copied, and each other text subtitle stream is converted to ASS.
+`--quality` maps to ffmpeg's `-global_quality` for `av1_qsv`; lower values preserve more quality but create larger files. The default is `18`. If the kept video stream is already AV1, the video stream is copied and encoder quality/preset options are not used. All streams are mapped with `-map 0`, except that an MJPEG video stream is excluded when it is paired with one other video stream. Each AAC/Opus audio stream is copied, and each other audio stream is converted to Opus. Surround layouts such as 5.1 are not downmixed by this tool. Each SSA/ASS or bitmap subtitle stream is copied, and each other text subtitle stream is converted to ASS.
 
 ## Example ffmpeg command
 

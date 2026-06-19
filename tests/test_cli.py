@@ -16,6 +16,7 @@ from transcode.transcode import (
     probe_audio_codecs,
     probe_subtitle_codecs,
     probe_video_codec,
+    probe_video_codecs,
 )
 
 
@@ -154,7 +155,7 @@ def test_probe_video_codec(tmp_path: Path, monkeypatch) -> None:
                 "-v",
                 "error",
                 "-select_streams",
-                "v:0",
+                "v",
                 "-show_entries",
                 "stream=codec_name",
                 "-of",
@@ -167,6 +168,67 @@ def test_probe_video_codec(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(transcode_module, "FFmpeg", FakeFFmpeg)
 
     assert probe_video_codec(input_file) == "av1"
+
+
+def test_probe_video_codecs(tmp_path: Path, monkeypatch) -> None:
+    """Ffprobe video JSON is parsed into all lowercase codec names."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    class FakeFFmpeg:
+        def __init__(self, executable: str) -> None:
+            assert executable == "ffprobe"
+            self.arguments = [executable]
+
+        def option(self, key: str, value: str) -> None:
+            self.arguments.extend([f"-{key}", value])
+
+        def input(self, path: str) -> None:
+            assert path == str(input_file)
+            self.arguments.extend(["-i", path])
+
+        def execute(self) -> bytes:
+            assert "-select_streams" in self.arguments
+            assert self.arguments[self.arguments.index("-select_streams") + 1] == "v"
+            return b'{"streams":[{"codec_name":"H264"},{"codec_name":"MJPEG"}]}'
+
+    monkeypatch.setattr(transcode_module, "FFmpeg", FakeFFmpeg)
+
+    assert probe_video_codecs(input_file) == ("h264", "mjpeg")
+
+
+def test_build_ffmpeg_command_drops_mjpeg_when_two_video_streams(
+    tmp_path: Path,
+) -> None:
+    """An MJPEG sidecar video stream is omitted when another video stream exists."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    command = build_ffmpeg_command(
+        TranscodeOptions(input_file=input_file, video_codecs=("h264", "mjpeg"))
+    )
+
+    map_positions = [index for index, value in enumerate(command) if value == "-map"]
+    assert command[map_positions[0] + 1] == "0"
+    assert command[map_positions[1] + 1] == "-0:v:1"
+    assert command[command.index("-c:v") + 1] == "av1_qsv"
+
+
+def test_build_ffmpeg_command_copies_av1_and_drops_mjpeg(
+    tmp_path: Path,
+) -> None:
+    """Dropping MJPEG still lets an AV1 primary stream be copied."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    command = build_ffmpeg_command(
+        TranscodeOptions(input_file=input_file, video_codecs=("mjpeg", "av1"))
+    )
+
+    map_positions = [index for index, value in enumerate(command) if value == "-map"]
+    assert command[map_positions[1] + 1] == "-0:v:0"
+    assert command[command.index("-c:v") + 1] == "copy"
+    assert "av1_qsv" not in command
 
 
 def test_probe_audio_codecs(tmp_path: Path, monkeypatch) -> None:

@@ -26,7 +26,7 @@ WaitAdapter = Callable[[int], None]
 class DirectoryTranscodeSettings:
     """Shared settings for every Transcode job in a Directory transcode run."""
 
-    quality: int = 18
+    quality: int = 20
     preset: str = "slow"
     hwaccel: bool = True
     overwrite: bool = False

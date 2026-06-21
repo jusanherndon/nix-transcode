@@ -48,7 +48,7 @@ DEFAULT_DIRECTORY_WAIT_SECONDS = 300
 @click.option(
     "-q",
     "--quality",
-    default=18,
+    default=20,
     show_default=True,
     type=click.IntRange(1, 51),
     help="Intel QSV global quality. Lower is higher quality/larger file.",

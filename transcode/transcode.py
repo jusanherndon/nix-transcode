@@ -18,7 +18,7 @@ class TranscodeOptions:
 
     input_file: Path
     output_file: Path | None = None
-    quality: int = 18
+    quality: int = 20
     preset: str = "slow"
     hwaccel: bool = True
     overwrite: bool = False

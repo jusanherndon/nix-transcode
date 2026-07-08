@@ -11,7 +11,7 @@ from transcode import __version__
 from transcode.directory_run import DirectoryTranscodeSettings, run_directory_transcode
 from transcode.transcode import TranscodeOptions, display_transcode_command, transcode
 
-DEFAULT_DIRECTORY_WAIT_SECONDS = 300
+DEFAULT_DIRECTORY_WAIT_SECONDS = 150
 
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})

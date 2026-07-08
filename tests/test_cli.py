@@ -32,7 +32,7 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert command[command.index("-vf") + 1] == "vpp_qsv=format=p010le"
     assert command[command.index("-c:a") + 1] == "copy"
     assert command[command.index("-c:s") + 1] == "copy"
-    assert str(tmp_path / "movie.mkv") in command
+    assert str(tmp_path / "transcoded_movie.mkv") in command
 
 
 def test_build_ffmpeg_command_copies_av1_video(tmp_path: Path) -> None:
@@ -314,7 +314,7 @@ def test_cli_input_file_option_dry_run(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert f"-i {input_file}" in result.output
-    assert str(tmp_path / "movie.mkv") in result.output
+    assert str(tmp_path / "transcoded_movie.mkv") in result.output
 
 
 def test_cli_input_directory_dry_run(tmp_path: Path) -> None:

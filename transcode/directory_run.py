@@ -8,15 +8,13 @@ from pathlib import Path
 from typing import Literal
 
 from transcode.transcode import (
+    TRANSCODED_PREFIX,
     TranscodeOptions,
-    build_ffmpeg_command,
-    format_command,
+    display_transcode_command,
     media_stream_codec_options_all_copy,
     options_with_probed_codec,
     transcode,
 )
-
-TRANSCODED_PREFIX = "transcoded_"
 
 OutputAdapter = Callable[[str], None]
 WaitAdapter = Callable[[int], None]
@@ -132,7 +130,7 @@ def run_directory_transcode(
     for index, job in enumerate(jobs):
         options = job.to_options()
         display_options = options_with_probed_codec(options, strict=False)
-        output(format_command(build_ffmpeg_command(display_options)))
+        output(display_transcode_command(options, display_options=display_options))
         if dry_run:
             continue
 

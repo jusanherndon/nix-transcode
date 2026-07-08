@@ -11,6 +11,8 @@ from pathlib import Path
 from ffmpeg.errors import FFmpegError
 from ffmpeg.ffmpeg import FFmpeg
 
+TRANSCODED_PREFIX = "transcoded_"
+
 
 @dataclass(frozen=True, slots=True)
 class TranscodeOptions:
@@ -33,7 +35,9 @@ class TranscodeOptions:
         """Return the requested output path, defaulting to a Matroska file."""
         if self.output_file is not None:
             return self.output_file
-        return self.input_file.with_name(f"{self.input_file.stem}.mkv")
+        return self.input_file.with_name(
+            f"{TRANSCODED_PREFIX}{self.input_file.stem}.mkv"
+        )
 
 
 def probe_stream_codecs(
@@ -271,6 +275,16 @@ def build_ffmpeg_command(options: TranscodeOptions) -> Sequence[str]:
 def format_command(command: Sequence[str]) -> str:
     """Return a shell-escaped command string for display."""
     return shlex.join(command)
+
+
+def display_transcode_command(
+    options: TranscodeOptions,
+    *,
+    display_options: TranscodeOptions | None = None,
+) -> str:
+    """Return the shell-escaped ffmpeg command for a transcode job."""
+    resolved = display_options or options_with_probed_codec(options, strict=False)
+    return format_command(build_ffmpeg_command(resolved))
 
 
 def transcode(options: TranscodeOptions) -> int:

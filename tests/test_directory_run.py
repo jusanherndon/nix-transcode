@@ -8,9 +8,51 @@ from pathlib import Path
 import transcode.directory_run as directory_run
 from transcode.directory_run import (
     DirectoryTranscodeSettings,
+    TranscodeJob,
     run_directory_transcode,
 )
-from transcode.transcode import TranscodeOptions
+from transcode.transcode import TranscodeOptions, build_ffmpeg_command
+
+
+def test_directory_and_single_file_jobs_build_same_ffmpeg_command(
+    tmp_path: Path,
+) -> None:
+    """Directory and single-file jobs share the same ffmpeg option builder."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+    output_file = tmp_path / "transcoded_movie.mkv"
+    settings = DirectoryTranscodeSettings(
+        quality=16,
+        preset="medium",
+        hwaccel=False,
+        overwrite=True,
+    )
+    single_file_options = TranscodeOptions(
+        input_file=input_file,
+        output_file=output_file,
+        quality=settings.quality,
+        preset=settings.preset,
+        hwaccel=settings.hwaccel,
+        overwrite=settings.overwrite,
+        video_codec="h264",
+        audio_codecs=("dts", "aac"),
+        subtitle_codecs=("subrip", "ass"),
+    )
+    directory_options = TranscodeJob(
+        input_file=input_file,
+        output_file=output_file,
+        settings=settings,
+    ).to_options()
+    directory_options = replace(
+        directory_options,
+        video_codec=single_file_options.video_codec,
+        audio_codecs=single_file_options.audio_codecs,
+        subtitle_codecs=single_file_options.subtitle_codecs,
+    )
+
+    assert build_ffmpeg_command(single_file_options) == build_ffmpeg_command(
+        directory_options
+    )
 
 
 def test_directory_transcode_run_reports_no_eligible_input_files(tmp_path: Path) -> None:

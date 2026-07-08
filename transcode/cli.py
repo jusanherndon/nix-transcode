@@ -9,13 +9,7 @@ import click
 
 from transcode import __version__
 from transcode.directory_run import DirectoryTranscodeSettings, run_directory_transcode
-from transcode.transcode import (
-    TranscodeOptions,
-    build_ffmpeg_command,
-    format_command,
-    options_with_probed_codec,
-    transcode,
-)
+from transcode.transcode import TranscodeOptions, display_transcode_command, transcode
 
 DEFAULT_DIRECTORY_WAIT_SECONDS = 300
 
@@ -43,7 +37,7 @@ DEFAULT_DIRECTORY_WAIT_SECONDS = 300
     "--output",
     "output_file",
     type=click.Path(dir_okay=False, path_type=Path),
-    help="Output .mkv path. Defaults to INPUT_STEM.mkv next to the input.",
+    help="Output .mkv path. Defaults to transcoded_INPUT_STEM.mkv next to the input.",
 )
 @click.option(
     "-q",
@@ -142,12 +136,9 @@ def main(
         hwaccel=hwaccel,
         overwrite=overwrite,
     )
-    display_options = options_with_probed_codec(options, strict=False)
-    command = format_command(build_ffmpeg_command(display_options))
+    click.echo(display_transcode_command(options))
 
     if dry_run:
-        click.echo(command)
         return
 
-    click.echo(command)
     raise click.exceptions.Exit(transcode(options))

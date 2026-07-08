@@ -32,6 +32,8 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert command[command.index("-vf") + 1] == "vpp_qsv=format=p010le"
     assert command[command.index("-c:a") + 1] == "copy"
     assert command[command.index("-c:s") + 1] == "copy"
+    assert "-b:v" not in command
+    assert "-max_muxing_queue_size" not in command
     assert str(tmp_path / "transcoded_movie.mkv") in command
 
 

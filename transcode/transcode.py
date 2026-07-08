@@ -248,14 +248,12 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
         **subtitle_codec_options(options.subtitle_codecs),
         "c:t": "copy",
         "f": "matroska",
-        "max_muxing_queue_size": "4096",
     }
     if not copy_video:
         output_options.update(
             {
                 "preset": options.preset,
                 "global_quality": options.quality,
-                "b:v": "0",
             }
         )
         if options.hwaccel:

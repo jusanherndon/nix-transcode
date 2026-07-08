@@ -341,18 +341,18 @@ def test_cli_input_directory_dry_run(tmp_path: Path) -> None:
 
 
 def test_cli_input_directory_wait_seconds_minimum(tmp_path: Path) -> None:
-    """Directory waits must be at least five minutes."""
+    """Directory waits must be at least the default cooldown."""
     input_file = tmp_path / "movie.mkv"
     input_file.write_text("not really video")
 
     runner = CliRunner()
     result = runner.invoke(
         main,
-        ["--input-directory", str(tmp_path), "--wait-seconds", "299", "--dry-run"],
+        ["--input-directory", str(tmp_path), "--wait-seconds", "149", "--dry-run"],
     )
 
     assert result.exit_code != 0
-    assert "299 is not in the range" in result.output
+    assert "149 is not in the range" in result.output
 
 
 def test_cli_input_directory_waits_between_transcodes(

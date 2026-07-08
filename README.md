@@ -38,7 +38,7 @@ transcode --input-directory /path/to/videos
 
 A single-file transcode creates `input.mkv` next to the source file.
 
-A directory transcode creates outputs next to each source file with a `transcoded_` prefix, such as `transcoded_input.mkv`. Files that already start with `transcoded_` are skipped. Directory transcodes wait at least 300 seconds (5 minutes) between files to give the GPU a break.
+A directory transcode creates outputs next to each source file with a `transcoded_` prefix, such as `transcoded_input.mkv`. Files that already start with `transcoded_` are skipped. Directory transcodes wait at least 150 seconds (2.5 minutes) between files to give the GPU a break.
 
 Useful options:
 

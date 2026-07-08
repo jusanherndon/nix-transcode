@@ -65,7 +65,7 @@ DEFAULT_DIRECTORY_WAIT_SECONDS = 150
     default=DEFAULT_DIRECTORY_WAIT_SECONDS,
     show_default=True,
     type=click.IntRange(DEFAULT_DIRECTORY_WAIT_SECONDS),
-    help="Seconds to wait between files when transcoding a directory; minimum is 300 seconds.",
+    help="Seconds to wait between files when transcoding a directory; minimum is 150 seconds.",
 )
 @click.option(
     "--dry-run", is_flag=True, help="Print the ffmpeg command without running it."

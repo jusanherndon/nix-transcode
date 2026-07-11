@@ -368,11 +368,11 @@ def test_cli_input_directory_waits_between_transcodes(
     slept_seconds: list[int] = []
     transcoded_files: list[Path] = []
 
-    def fake_transcode(options: TranscodeOptions) -> int:
+    def fake_transcode(options: TranscodeOptions, output=None) -> int:
         transcoded_files.append(options.input_file)
         return 0
 
-    monkeypatch.setattr(directory_run, "transcode", fake_transcode)
+    monkeypatch.setattr(directory_run, "transcode_with_quality_check", fake_transcode)
     monkeypatch.setattr(cli.time, "sleep", slept_seconds.append)
 
     runner = CliRunner()

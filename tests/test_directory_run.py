@@ -55,7 +55,9 @@ def test_directory_and_single_file_jobs_build_same_ffmpeg_command(
     )
 
 
-def test_directory_transcode_run_reports_no_eligible_input_files(tmp_path: Path) -> None:
+def test_directory_transcode_run_reports_no_eligible_input_files(
+    tmp_path: Path,
+) -> None:
     """Dry-run and real runs share the same no-files result."""
     (tmp_path / "transcoded_old.mkv").write_text("not really video")
     (tmp_path / "nested").mkdir()
@@ -111,11 +113,11 @@ def test_directory_transcode_run_returns_failed_result(
         input_file.write_text("not really video")
     attempted_files: list[Path] = []
 
-    def fake_transcode(options: TranscodeOptions) -> int:
+    def fake_transcode(options: TranscodeOptions, output=None) -> int:
         attempted_files.append(options.input_file)
         return 7
 
-    monkeypatch.setattr(directory_run, "transcode", fake_transcode)
+    monkeypatch.setattr(directory_run, "transcode_with_quality_check", fake_transcode)
 
     result = run_directory_transcode(
         tmp_path,
@@ -143,7 +145,9 @@ def test_directory_transcode_run_waits_between_successful_jobs(
         input_file.write_text("not really video")
     waited_seconds: list[int] = []
 
-    monkeypatch.setattr(directory_run, "transcode", lambda _options: 0)
+    monkeypatch.setattr(
+        directory_run, "transcode_with_quality_check", lambda _options, output=None: 0
+    )
 
     result = run_directory_transcode(
         tmp_path,
@@ -179,7 +183,9 @@ def test_directory_transcode_run_skips_wait_after_copy_only_job(
             subtitle_codecs=("ass", "hdmv_pgs_subtitle"),
         )
 
-    monkeypatch.setattr(directory_run, "transcode", lambda _options: 0)
+    monkeypatch.setattr(
+        directory_run, "transcode_with_quality_check", lambda _options, output=None: 0
+    )
     monkeypatch.setattr(
         directory_run, "options_with_probed_codec", fake_options_with_probed_codec
     )

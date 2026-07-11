@@ -9,7 +9,11 @@ import click
 
 from transcode import __version__
 from transcode.directory_run import DirectoryTranscodeSettings, run_directory_transcode
-from transcode.transcode import TranscodeOptions, display_transcode_command, transcode
+from transcode.transcode import (
+    TranscodeOptions,
+    display_transcode_command,
+    transcode_with_quality_check,
+)
 
 DEFAULT_DIRECTORY_WAIT_SECONDS = 150
 
@@ -61,6 +65,13 @@ DEFAULT_DIRECTORY_WAIT_SECONDS = 150
 )
 @click.option("-y", "--overwrite", is_flag=True, help="Overwrite the output file.")
 @click.option(
+    "--check-quality/--no-check-quality",
+    default=True,
+    show_default=True,
+    help="After a successful transcode, score the output against the input with "
+    "ffmpeg-quality-metrics (PSNR and SSIM).",
+)
+@click.option(
     "--wait-seconds",
     default=DEFAULT_DIRECTORY_WAIT_SECONDS,
     show_default=True,
@@ -80,6 +91,7 @@ def main(
     preset: str,
     hwaccel: bool,
     overwrite: bool,
+    check_quality: bool,
     wait_seconds: int,
     dry_run: bool,
 ) -> None:
@@ -110,6 +122,7 @@ def main(
                 preset=preset,
                 hwaccel=hwaccel,
                 overwrite=overwrite,
+                check_quality=check_quality,
             ),
             wait_seconds=wait_seconds,
             dry_run=dry_run,
@@ -135,10 +148,13 @@ def main(
         preset=preset,
         hwaccel=hwaccel,
         overwrite=overwrite,
+        check_quality=check_quality,
     )
     click.echo(display_transcode_command(options))
 
     if dry_run:
         return
 
-    raise click.exceptions.Exit(transcode(options))
+    raise click.exceptions.Exit(
+        transcode_with_quality_check(options, output=click.echo)
+    )

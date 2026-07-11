@@ -13,7 +13,7 @@ from transcode.transcode import (
     display_transcode_command,
     media_stream_codec_options_all_copy,
     options_with_probed_codec,
-    transcode,
+    transcode_with_quality_check,
 )
 
 OutputAdapter = Callable[[str], None]
@@ -28,6 +28,7 @@ class DirectoryTranscodeSettings:
     preset: str = "slow"
     hwaccel: bool = True
     overwrite: bool = False
+    check_quality: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +48,7 @@ class TranscodeJob:
             preset=self.settings.preset,
             hwaccel=self.settings.hwaccel,
             overwrite=self.settings.overwrite,
+            check_quality=self.settings.check_quality,
         )
 
 
@@ -134,7 +136,7 @@ def run_directory_transcode(
         if dry_run:
             continue
 
-        exit_code = transcode(options)
+        exit_code = transcode_with_quality_check(options, output=output)
         if exit_code != 0:
             return DirectoryTranscodeFailed(
                 status="failed",

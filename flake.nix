@@ -20,6 +20,43 @@
 
         ffmpegRuntime = pkgs.ffmpeg-full;
 
+        ffmpegQualityMetrics = pythonPackages.buildPythonPackage rec {
+          pname = "ffmpeg-quality-metrics";
+          version = "3.12.0";
+          pyproject = true;
+
+          src = pythonPackages.fetchPypi {
+            pname = "ffmpeg_quality_metrics";
+            inherit version;
+            hash = "sha256-m6Yte7EzL18cychFjFxA8Zcsae4eh3FMIkX4yNvZiFE=";
+          };
+
+          build-system = [
+            pythonPackages.uv-build
+          ];
+
+          dependencies = [
+            pythonPackages.ffmpeg-progress-yield
+            pythonPackages.tqdm
+          ];
+
+          postPatch = ''
+            sed -i 's/requires = \["uv_build[^"]*"]/requires = ["uv_build"]/' pyproject.toml
+            sed -i '/license-files = \["LICENSE.md"]/d' pyproject.toml
+          '';
+
+          doCheck = false;
+
+          pythonImportsCheck = [ "ffmpeg_quality_metrics" ];
+
+          meta = {
+            description = "Calculate video quality metrics with FFmpeg (SSIM, PSNR, VMAF)";
+            homepage = "https://github.com/slhck/ffmpeg-quality-metrics";
+            license = lib.licenses.mit;
+            mainProgram = "ffmpeg-quality-metrics";
+          };
+        };
+
         package = pythonPackages.buildPythonPackage {
           pname = project.name;
           inherit (project) version;
@@ -38,6 +75,7 @@
           propagatedBuildInputs = [
             pythonPackages.click
             pythonPackages."python-ffmpeg"
+            ffmpegQualityMetrics
           ];
 
           nativeCheckInputs = [
@@ -94,6 +132,7 @@
               pythonPackages.ruff
               pythonPackages."python-ffmpeg"
               pythonPackages.click
+              ffmpegQualityMetrics
 
               pythonPackages.python-lsp-server
               pythonPackages.python-lsp-ruff

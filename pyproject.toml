@@ -10,6 +10,7 @@ license = "MIT"
 keywords = ["cli"]
 dependencies = [
     "click",
+    "ffmpeg-quality-metrics>=3.12.0",
     "python-ffmpeg>=2.0.12",
 ]
 

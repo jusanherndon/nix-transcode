@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import shlex
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 from ffmpeg.errors import FFmpegError
 from ffmpeg.ffmpeg import FFmpeg
+
+from transcode.quality import check_quality
 
 TRANSCODED_PREFIX = "transcoded_"
 
@@ -24,6 +26,7 @@ class TranscodeOptions:
     preset: str = "slow"
     hwaccel: bool = True
     overwrite: bool = False
+    check_quality: bool = True
     ffmpeg_bin: str = "ffmpeg"
     ffprobe_bin: str = "ffprobe"
     video_codec: str | None = None
@@ -300,3 +303,23 @@ def transcode(options: TranscodeOptions) -> int:
             output_file.unlink()
         return 1
     return 0
+
+
+def transcode_with_quality_check(
+    options: TranscodeOptions,
+    *,
+    output: Callable[[str], None] | None = None,
+) -> int:
+    """Run a Transcode job, then optionally score the output against the input."""
+    exit_code = transcode(options)
+    if exit_code != 0 or not options.check_quality:
+        return exit_code
+
+    quality_exit_code, summary = check_quality(
+        options.input_file,
+        options.resolved_output(),
+        ffmpeg_bin=options.ffmpeg_bin,
+    )
+    if output is not None:
+        output(summary)
+    return quality_exit_code

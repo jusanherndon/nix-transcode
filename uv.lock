@@ -28,6 +28,31 @@ wheels = [
 ]
 
 [[package]]
+name = "ffmpeg-progress-yield"
+version = "1.1.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/36/eb/f4836c4c30cef5f26cb0d77fa16938303665f87c1e0f64c2812d00706ecf/ffmpeg_progress_yield-1.1.3.tar.gz", hash = "sha256:79bf782a6d6bf9be64bea1d3b7a0f777f11057705935128a225970db74dedf85", size = 10012, upload-time = "2026-03-30T15:38:45.453Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fd/c7/c42ce9353ae6b70bd920856a97736ac81e068901fb537126365e6735f1c8/ffmpeg_progress_yield-1.1.3-py3-none-any.whl", hash = "sha256:4eb4948a72414608c7b05c8061aff85ff47e31e33f629abc22d08d0b03196c62", size = 12709, upload-time = "2026-03-30T15:38:44.575Z" },
+]
+
+[[package]]
+name = "ffmpeg-quality-metrics"
+version = "3.12.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ffmpeg-progress-yield" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/05/a1/18e4354839717b328e976c7df52bcd6354f17d0713724cba0a9081f2d282/ffmpeg_quality_metrics-3.12.0.tar.gz", hash = "sha256:9ba62d7bb1332f5f1cc9c8458c5c40f1972c69ee1e87714c2245f8c8dbd98851", size = 69687, upload-time = "2026-07-10T18:44:54.448Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c5/3c/6b410542231106ebd33db7e795cc988090ee4e2d615c7b5f554c4bf5c3df/ffmpeg_quality_metrics-3.12.0-py3-none-any.whl", hash = "sha256:1f94bd126664adb9c3fae0d7a2ab527557eb7b241948a4f30a6c2da91d8a45d3", size = 104308, upload-time = "2026-07-10T18:44:53.164Z" },
+]
+
+[[package]]
 name = "iniconfig"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -130,11 +155,24 @@ wheels = [
 ]
 
 [[package]]
+name = "tqdm"
+version = "4.68.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ae/5f/57ff8b434839e70dab45601284ea413e947a63799891b7553e5960a793a8/tqdm-4.68.4.tar.gz", hash = "sha256:19829c9673638f2a0b8617da4cdcb927e831cd88bcfcb6e78d42a4d1af131520", size = 792418, upload-time = "2026-07-07T09:58:18.369Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/22/2a/5e5e750890ada51017d18d0d4c30da696e5b5bd3180947729927628fc3cb/tqdm-4.68.4-py3-none-any.whl", hash = "sha256:5168118b2368f48c561afda8020fd79195b1bdb0bdf8086b88442c267a315dc2", size = 676612, upload-time = "2026-07-07T09:58:16.256Z" },
+]
+
+[[package]]
 name = "transcode"
 version = "0.0.dev0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
+    { name = "ffmpeg-quality-metrics" },
     { name = "python-ffmpeg" },
 ]
 
@@ -147,6 +185,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "click" },
+    { name = "ffmpeg-quality-metrics", specifier = ">=3.12.0" },
     { name = "python-ffmpeg", specifier = ">=2.0.12" },
 ]
 

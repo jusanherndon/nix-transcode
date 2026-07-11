@@ -9,6 +9,7 @@ import click
 
 from transcode import __version__
 from transcode.directory_run import DirectoryTranscodeSettings, run_directory_transcode
+from transcode.quality import default_quality_threads
 from transcode.transcode import (
     TranscodeOptions,
     display_transcode_command,
@@ -72,6 +73,14 @@ DEFAULT_DIRECTORY_WAIT_SECONDS = 150
     "ffmpeg-quality-metrics (PSNR, SSIM, and VMAF).",
 )
 @click.option(
+    "--quality-threads",
+    default=default_quality_threads,
+    show_default="CPU count - 2",
+    type=click.IntRange(1),
+    help="Thread count for ffmpeg filters and libvmaf during quality checks. "
+    "Defaults to CPU count minus two.",
+)
+@click.option(
     "--wait-seconds",
     default=DEFAULT_DIRECTORY_WAIT_SECONDS,
     show_default=True,
@@ -92,6 +101,7 @@ def main(
     hwaccel: bool,
     overwrite: bool,
     check_quality: bool,
+    quality_threads: int,
     wait_seconds: int,
     dry_run: bool,
 ) -> None:
@@ -123,6 +133,7 @@ def main(
                 hwaccel=hwaccel,
                 overwrite=overwrite,
                 check_quality=check_quality,
+                quality_threads=quality_threads,
             ),
             wait_seconds=wait_seconds,
             dry_run=dry_run,
@@ -149,6 +160,7 @@ def main(
         hwaccel=hwaccel,
         overwrite=overwrite,
         check_quality=check_quality,
+        quality_threads=quality_threads,
     )
     click.echo(display_transcode_command(options))
 

@@ -29,6 +29,7 @@ class DirectoryTranscodeSettings:
     hwaccel: bool = True
     overwrite: bool = False
     check_quality: bool = True
+    quality_threads: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +50,7 @@ class TranscodeJob:
             hwaccel=self.settings.hwaccel,
             overwrite=self.settings.overwrite,
             check_quality=self.settings.check_quality,
+            quality_threads=self.settings.quality_threads,
         )
 
 

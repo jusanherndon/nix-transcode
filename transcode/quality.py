@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 from pathlib import Path
 
 from ffmpeg_quality_metrics import FfmpegQualityMetrics, FfmpegQualityMetricsError
 
 DEFAULT_QUALITY_METRICS: tuple[str, ...] = ("psnr", "ssim", "vmaf")
+
+
+def default_quality_threads() -> int:
+    """Return the default thread count for quality metric calculation.
+
+    Leaves two cores free so other programs can keep responding.
+    """
+    return max(1, (os.cpu_count() or 1) - 2)
 
 
 def format_quality_summary(global_stats: dict) -> str:
@@ -32,16 +41,26 @@ def check_quality(
     distorted: Path,
     *,
     metrics: Sequence[str] = DEFAULT_QUALITY_METRICS,
+    threads: int | None = None,
     ffmpeg_bin: str = "ffmpeg",
 ) -> tuple[int, str]:
-    """Compare distorted against reference and return exit code plus summary text."""
+    """Compare distorted against reference and return exit code plus summary text.
+
+    ``threads`` sets both ffmpeg filter threads and libvmaf ``n_threads``. When
+    omitted, uses CPU count minus two (at least one thread).
+    """
+    thread_count = default_quality_threads() if threads is None else threads
     try:
         ffqm = FfmpegQualityMetrics(
             str(reference),
             str(distorted),
+            threads=thread_count,
             ffmpeg_path=ffmpeg_bin,
         )
-        ffqm.calculate(list(metrics))
+        ffqm.calculate(
+            list(metrics),
+            vmaf_options={"n_threads": thread_count},
+        )
         summary = format_quality_summary(ffqm.get_global_stats())
     except (OSError, FfmpegQualityMetricsError, ValueError, KeyError) as exc:
         return 1, f"Quality metrics failed: {exc}"

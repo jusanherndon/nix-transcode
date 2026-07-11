@@ -27,6 +27,7 @@ class TranscodeOptions:
     hwaccel: bool = True
     overwrite: bool = False
     check_quality: bool = True
+    quality_threads: int | None = None
     ffmpeg_bin: str = "ffmpeg"
     ffprobe_bin: str = "ffprobe"
     video_codec: str | None = None
@@ -327,6 +328,7 @@ def transcode_with_quality_check(
     quality_exit_code, summary = check_quality(
         options.input_file,
         options.resolved_output(),
+        threads=options.quality_threads,
         ffmpeg_bin=options.ffmpeg_bin,
     )
     if output is not None:

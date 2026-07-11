@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ffmpeg_quality_metrics import FfmpegQualityMetrics, FfmpegQualityMetricsError
 
-DEFAULT_QUALITY_METRICS: tuple[str, ...] = ("psnr", "ssim")
+DEFAULT_QUALITY_METRICS: tuple[str, ...] = ("psnr", "ssim", "vmaf")
 
 
 def format_quality_summary(global_stats: dict) -> str:
@@ -19,6 +19,9 @@ def format_quality_summary(global_stats: dict) -> str:
     ssim = global_stats.get("ssim", {}).get("ssim_avg", {})
     if "average" in ssim:
         lines.append(f"  SSIM avg: {ssim['average']:.6f}")
+    vmaf = global_stats.get("vmaf", {}).get("vmaf", {})
+    if "average" in vmaf:
+        lines.append(f"  VMAF avg: {vmaf['average']:.3f}")
     if len(lines) == 1:
         lines.append("  (no summary stats available)")
     return "\n".join(lines)

@@ -12,17 +12,19 @@ from transcode.quality import check_quality, format_quality_summary
 from transcode.transcode import TranscodeOptions, transcode_with_quality_check
 
 
-def test_format_quality_summary_includes_psnr_and_ssim() -> None:
+def test_format_quality_summary_includes_psnr_ssim_and_vmaf() -> None:
     """Global stats are rendered into a short summary."""
     summary = format_quality_summary(
         {
             "psnr": {"psnr_avg": {"average": 42.5}},
             "ssim": {"ssim_avg": {"average": 0.987654}},
+            "vmaf": {"vmaf": {"average": 91.234}},
         }
     )
 
     assert "PSNR avg: 42.500 dB" in summary
     assert "SSIM avg: 0.987654" in summary
+    assert "VMAF avg: 91.234" in summary
 
 
 def test_check_quality_returns_summary(tmp_path: Path, monkeypatch) -> None:
@@ -39,13 +41,14 @@ def test_check_quality_returns_summary(tmp_path: Path, monkeypatch) -> None:
             assert ffmpeg_path == "ffmpeg"
 
         def calculate(self, metrics: list[str]) -> dict:
-            assert metrics == ["psnr", "ssim"]
+            assert metrics == ["psnr", "ssim", "vmaf"]
             return {}
 
         def get_global_stats(self) -> dict:
             return {
                 "psnr": {"psnr_avg": {"average": 40.0}},
                 "ssim": {"ssim_avg": {"average": 0.95}},
+                "vmaf": {"vmaf": {"average": 88.5}},
             }
 
     monkeypatch.setattr(quality_module, "FfmpegQualityMetrics", FakeMetrics)
@@ -55,6 +58,7 @@ def test_check_quality_returns_summary(tmp_path: Path, monkeypatch) -> None:
     assert exit_code == 0
     assert "PSNR avg: 40.000 dB" in summary
     assert "SSIM avg: 0.950000" in summary
+    assert "VMAF avg: 88.500" in summary
 
 
 def test_check_quality_reports_failure(tmp_path: Path, monkeypatch) -> None:
@@ -104,7 +108,11 @@ def test_transcode_with_quality_check_runs_after_success(
     )
 
     assert exit_code == 0
-    assert printed == ["ok:movie.mkv:transcoded_movie.mkv:ffmpeg"]
+    assert printed == [
+        "Transcode done.",
+        "Calculating quality metrics...",
+        "ok:movie.mkv:transcoded_movie.mkv:ffmpeg",
+    ]
 
 
 def test_transcode_with_quality_check_can_be_skipped(
@@ -114,6 +122,7 @@ def test_transcode_with_quality_check_can_be_skipped(
     input_file = tmp_path / "movie.mkv"
     input_file.write_text("not really video")
     called = False
+    printed: list[str] = []
 
     monkeypatch.setattr(transcode_module, "transcode", lambda _options: 0)
 
@@ -126,11 +135,12 @@ def test_transcode_with_quality_check_can_be_skipped(
 
     exit_code = transcode_with_quality_check(
         TranscodeOptions(input_file=input_file, check_quality=False),
-        output=lambda _line: None,
+        output=printed.append,
     )
 
     assert exit_code == 0
     assert called is False
+    assert printed == ["Transcode done."]
 
 
 def test_transcode_with_quality_check_skips_on_transcode_failure(

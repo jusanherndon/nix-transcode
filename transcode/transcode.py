@@ -312,8 +312,17 @@ def transcode_with_quality_check(
 ) -> int:
     """Run a Transcode job, then optionally score the output against the input."""
     exit_code = transcode(options)
-    if exit_code != 0 or not options.check_quality:
+    if exit_code != 0:
         return exit_code
+
+    if output is not None:
+        output("Transcode done.")
+
+    if not options.check_quality:
+        return exit_code
+
+    if output is not None:
+        output("Calculating quality metrics...")
 
     quality_exit_code, summary = check_quality(
         options.input_file,

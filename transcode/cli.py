@@ -69,7 +69,7 @@ DEFAULT_DIRECTORY_WAIT_SECONDS = 150
     default=True,
     show_default=True,
     help="After a successful transcode, score the output against the input with "
-    "ffmpeg-quality-metrics (PSNR and SSIM).",
+    "ffmpeg-quality-metrics (PSNR, SSIM, and VMAF).",
 )
 @click.option(
     "--wait-seconds",

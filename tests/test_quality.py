@@ -8,8 +8,14 @@ from ffmpeg_quality_metrics import FfmpegQualityMetricsError
 
 import transcode.quality as quality_module
 import transcode.transcode as transcode_module
-from transcode.quality import check_quality, format_quality_summary
+from transcode.quality import check_quality, format_quality_summary, quality_metrics
 from transcode.transcode import TranscodeOptions, transcode_with_quality_check
+
+
+def test_quality_metrics_default_excludes_vmaf() -> None:
+    """Default quality checks only run PSNR and SSIM."""
+    assert quality_metrics() == ("psnr", "ssim")
+    assert quality_metrics(include_vmaf=True) == ("psnr", "ssim", "vmaf")
 
 
 def test_format_quality_summary_includes_psnr_ssim_and_vmaf() -> None:
@@ -46,6 +52,45 @@ def test_check_quality_returns_summary(tmp_path: Path, monkeypatch) -> None:
         def calculate(
             self, metrics: list[str], vmaf_options: dict | None = None
         ) -> dict:
+            assert metrics == ["psnr", "ssim"]
+            assert vmaf_options is None
+            return {}
+
+        def get_global_stats(self) -> dict:
+            return {
+                "psnr": {"psnr_avg": {"average": 40.0}},
+                "ssim": {"ssim_avg": {"average": 0.95}},
+            }
+
+    monkeypatch.setattr(quality_module, "FfmpegQualityMetrics", FakeMetrics)
+
+    exit_code, summary = check_quality(reference, distorted, threads=8)
+
+    assert exit_code == 0
+    assert "PSNR avg: 40.000 dB" in summary
+    assert "SSIM avg: 0.950000" in summary
+    assert "VMAF" not in summary
+
+
+def test_check_quality_includes_vmaf_when_requested(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Passing include_vmaf adds VMAF and libvmaf thread options."""
+    reference = tmp_path / "source.mkv"
+    distorted = tmp_path / "transcoded_source.mkv"
+    reference.write_text("ref")
+    distorted.write_text("dist")
+
+    class FakeMetrics:
+        def __init__(
+            self, _ref: str, _dist: str, *, threads: int, ffmpeg_path: str
+        ) -> None:
+            assert threads == 8
+            assert ffmpeg_path == "ffmpeg"
+
+        def calculate(
+            self, metrics: list[str], vmaf_options: dict | None = None
+        ) -> dict:
             assert metrics == ["psnr", "ssim", "vmaf"]
             assert vmaf_options == {"n_threads": 8}
             return {}
@@ -59,11 +104,11 @@ def test_check_quality_returns_summary(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setattr(quality_module, "FfmpegQualityMetrics", FakeMetrics)
 
-    exit_code, summary = check_quality(reference, distorted, threads=8)
+    exit_code, summary = check_quality(
+        reference, distorted, include_vmaf=True, threads=8
+    )
 
     assert exit_code == 0
-    assert "PSNR avg: 40.000 dB" in summary
-    assert "SSIM avg: 0.950000" in summary
     assert "VMAF avg: 88.500" in summary
 
 
@@ -90,7 +135,7 @@ def test_check_quality_defaults_to_cpu_count_minus_two(
     distorted = tmp_path / "transcoded_source.mkv"
     reference.write_text("ref")
     distorted.write_text("dist")
-    seen: dict[str, int] = {}
+    seen: dict[str, object] = {}
 
     class FakeMetrics:
         def __init__(
@@ -100,10 +145,10 @@ def test_check_quality_defaults_to_cpu_count_minus_two(
             assert ffmpeg_path == "ffmpeg"
 
         def calculate(
-            self, _metrics: list[str], vmaf_options: dict | None = None
+            self, metrics: list[str], vmaf_options: dict | None = None
         ) -> dict:
-            assert vmaf_options is not None
-            seen["n_threads"] = vmaf_options["n_threads"]
+            seen["metrics"] = metrics
+            seen["vmaf_options"] = vmaf_options
             return {}
 
         def get_global_stats(self) -> dict:
@@ -114,7 +159,11 @@ def test_check_quality_defaults_to_cpu_count_minus_two(
 
     check_quality(reference, distorted)
 
-    assert seen == {"threads": 10, "n_threads": 10}
+    assert seen == {
+        "threads": 10,
+        "metrics": ["psnr", "ssim"],
+        "vmaf_options": None,
+    }
 
 
 def test_check_quality_reports_failure(tmp_path: Path, monkeypatch) -> None:
@@ -154,15 +203,18 @@ def test_transcode_with_quality_check_runs_after_success(
     monkeypatch.setattr(
         transcode_module,
         "check_quality",
-        lambda reference, distorted, *, threads=None, ffmpeg_bin="ffmpeg": (
+        lambda reference, distorted, *, include_vmaf=False, threads=None, ffmpeg_bin="ffmpeg": (
             0,
-            f"ok:{reference.name}:{distorted.name}:{threads}:{ffmpeg_bin}",
+            f"ok:{reference.name}:{distorted.name}:{include_vmaf}:{threads}:{ffmpeg_bin}",
         ),
     )
 
     exit_code = transcode_with_quality_check(
         TranscodeOptions(
-            input_file=input_file, output_file=output_file, quality_threads=16
+            input_file=input_file,
+            output_file=output_file,
+            quality_threads=16,
+            check_vmaf=True,
         ),
         output=printed.append,
     )
@@ -171,7 +223,7 @@ def test_transcode_with_quality_check_runs_after_success(
     assert printed == [
         "Transcode done.",
         "Calculating quality metrics...",
-        "ok:movie.mkv:transcoded_movie.mkv:16:ffmpeg",
+        "ok:movie.mkv:transcoded_movie.mkv:True:16:ffmpeg",
     ]
 
 

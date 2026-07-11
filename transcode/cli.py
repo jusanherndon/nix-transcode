@@ -70,7 +70,14 @@ DEFAULT_DIRECTORY_WAIT_SECONDS = 150
     default=True,
     show_default=True,
     help="After a successful transcode, score the output against the input with "
-    "ffmpeg-quality-metrics (PSNR, SSIM, and VMAF).",
+    "ffmpeg-quality-metrics (PSNR and SSIM by default).",
+)
+@click.option(
+    "--vmaf/--no-vmaf",
+    "check_vmaf",
+    default=False,
+    show_default=True,
+    help="Also calculate VMAF during quality checks. Slower than PSNR/SSIM.",
 )
 @click.option(
     "--quality-threads",
@@ -101,6 +108,7 @@ def main(
     hwaccel: bool,
     overwrite: bool,
     check_quality: bool,
+    check_vmaf: bool,
     quality_threads: int,
     wait_seconds: int,
     dry_run: bool,
@@ -133,6 +141,7 @@ def main(
                 hwaccel=hwaccel,
                 overwrite=overwrite,
                 check_quality=check_quality,
+                check_vmaf=check_vmaf,
                 quality_threads=quality_threads,
             ),
             wait_seconds=wait_seconds,
@@ -160,6 +169,7 @@ def main(
         hwaccel=hwaccel,
         overwrite=overwrite,
         check_quality=check_quality,
+        check_vmaf=check_vmaf,
         quality_threads=quality_threads,
     )
     click.echo(display_transcode_command(options))

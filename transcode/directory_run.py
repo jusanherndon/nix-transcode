@@ -29,6 +29,7 @@ class DirectoryTranscodeSettings:
     hwaccel: bool = True
     overwrite: bool = False
     check_quality: bool = True
+    check_vmaf: bool = False
     quality_threads: int | None = None
 
 
@@ -50,6 +51,7 @@ class TranscodeJob:
             hwaccel=self.settings.hwaccel,
             overwrite=self.settings.overwrite,
             check_quality=self.settings.check_quality,
+            check_vmaf=self.settings.check_vmaf,
             quality_threads=self.settings.quality_threads,
         )
 

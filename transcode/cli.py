@@ -13,8 +13,22 @@ from transcode.quality import default_quality_threads
 from transcode.transcode import (
     TranscodeOptions,
     display_transcode_command,
+    parse_bitrate,
     transcode_with_quality_check,
 )
+
+
+def _bitrate_option(
+    _ctx: click.Context, _param: click.Parameter, value: str | None
+) -> int | None:
+    """Parse an optional bitrate CLI value into bits/sec."""
+    if value is None:
+        return None
+    try:
+        return parse_bitrate(value)
+    except ValueError as exc:
+        raise click.BadParameter(str(exc)) from exc
+
 
 DEFAULT_DIRECTORY_WAIT_SECONDS = 150
 
@@ -50,7 +64,22 @@ DEFAULT_DIRECTORY_WAIT_SECONDS = 150
     default=20,
     show_default=True,
     type=click.IntRange(1, 51),
-    help="Intel QSV global quality. Lower is higher quality/larger file.",
+    help="Intel QSV global quality. Lower is higher quality/larger file. "
+    "Ignored when --bitrate is set.",
+)
+@click.option(
+    "-b",
+    "--bitrate",
+    default=None,
+    callback=_bitrate_option,
+    help="Target average video bitrate for VBR encoding, for example 6M or 6000k. "
+    "Switches from quality mode to bitrate mode.",
+)
+@click.option(
+    "--maxrate",
+    default=None,
+    callback=_bitrate_option,
+    help="Peak video bitrate. Defaults to 2x --bitrate when --bitrate is set.",
 )
 @click.option(
     "--preset",
@@ -104,6 +133,8 @@ def main(
     input_directory: Path | None,
     output_file: Path | None,
     quality: int,
+    bitrate: int | None,
+    maxrate: int | None,
     preset: str,
     hwaccel: bool,
     overwrite: bool,
@@ -119,6 +150,9 @@ def main(
     copied, other audio streams are converted to Opus, supported text subtitles
     are converted to ASS, and attachment streams are copied.
     """
+    if maxrate is not None and bitrate is None:
+        raise click.UsageError("--maxrate requires --bitrate")
+
     input_sources = [
         source
         for source in (input_path, input_file, input_directory)
@@ -137,6 +171,8 @@ def main(
             input_directory,
             DirectoryTranscodeSettings(
                 quality=quality,
+                bitrate=bitrate,
+                maxrate=maxrate,
                 preset=preset,
                 hwaccel=hwaccel,
                 overwrite=overwrite,
@@ -165,6 +201,8 @@ def main(
         input_file=source_file,
         output_file=output_file,
         quality=quality,
+        bitrate=bitrate,
+        maxrate=maxrate,
         preset=preset,
         hwaccel=hwaccel,
         overwrite=overwrite,

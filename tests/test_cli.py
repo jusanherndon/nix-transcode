@@ -32,9 +32,78 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert command[command.index("-vf") + 1] == "vpp_qsv=format=p010le"
     assert command[command.index("-c:a") + 1] == "copy"
     assert command[command.index("-c:s") + 1] == "copy"
+    assert command[command.index("-global_quality") + 1] == "20"
     assert "-b:v" not in command
     assert "-max_muxing_queue_size" not in command
     assert str(tmp_path / "transcoded_movie.mkv") in command
+
+
+def test_build_ffmpeg_command_bitrate_mode(tmp_path: Path) -> None:
+    """Bitrate mode uses VBR options instead of global_quality."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    command = build_ffmpeg_command(
+        TranscodeOptions(input_file=input_file, bitrate=6_000_000)
+    )
+
+    assert command[command.index("-b:v") + 1] == "6000000"
+    assert command[command.index("-maxrate") + 1] == "12000000"
+    assert command[command.index("-bufsize") + 1] == "24000000"
+    assert "-global_quality" not in command
+
+
+def test_build_ffmpeg_command_bitrate_with_maxrate(tmp_path: Path) -> None:
+    """An explicit maxrate overrides the default 2x peak."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    command = build_ffmpeg_command(
+        TranscodeOptions(input_file=input_file, bitrate=6_000_000, maxrate=8_000_000)
+    )
+
+    assert command[command.index("-b:v") + 1] == "6000000"
+    assert command[command.index("-maxrate") + 1] == "8000000"
+    assert command[command.index("-bufsize") + 1] == "24000000"
+    assert "-global_quality" not in command
+
+
+def test_parse_bitrate() -> None:
+    """Bitrate strings with k/M suffixes parse to bits per second."""
+    from transcode.transcode import parse_bitrate
+
+    assert parse_bitrate("6M") == 6_000_000
+    assert parse_bitrate("6000k") == 6_000_000
+    assert parse_bitrate("6000000") == 6_000_000
+
+
+def test_cli_bitrate_dry_run(tmp_path: Path) -> None:
+    """--bitrate switches the dry-run command into VBR mode."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [str(input_file), "--bitrate", "6M", "--dry-run", "--no-hwaccel"],
+    )
+
+    assert result.exit_code == 0
+    assert "-b:v 6000000" in result.output
+    assert "-maxrate 12000000" in result.output
+    assert "-global_quality" not in result.output
+
+
+def test_cli_maxrate_requires_bitrate(tmp_path: Path) -> None:
+    """--maxrate alone is rejected."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    runner = CliRunner()
+    result = runner.invoke(main, [str(input_file), "--maxrate", "8M", "--dry-run"])
+
+    assert result.exit_code != 0
+    assert "--maxrate requires --bitrate" in result.output
 
 
 def test_build_ffmpeg_command_copies_av1_video(tmp_path: Path) -> None:

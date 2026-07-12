@@ -16,6 +16,23 @@ from transcode.quality import check_quality
 TRANSCODED_PREFIX = "transcoded_"
 
 
+def parse_bitrate(value: str) -> int:
+    """Parse a bitrate like ``6M``, ``6000k``, or ``6000000`` into bits/sec."""
+    text = value.strip().lower().replace(" ", "")
+    if not text:
+        msg = "bitrate must not be empty"
+        raise ValueError(msg)
+    try:
+        if text.endswith("m"):
+            return int(float(text[:-1]) * 1_000_000)
+        if text.endswith("k"):
+            return int(float(text[:-1]) * 1_000)
+        return int(text)
+    except ValueError as exc:
+        msg = f"invalid bitrate: {value!r}"
+        raise ValueError(msg) from exc
+
+
 @dataclass(frozen=True, slots=True)
 class TranscodeOptions:
     """Options used to create an ffmpeg transcode command."""
@@ -23,6 +40,8 @@ class TranscodeOptions:
     input_file: Path
     output_file: Path | None = None
     quality: int = 20
+    bitrate: int | None = None
+    maxrate: int | None = None
     preset: str = "slow"
     hwaccel: bool = True
     overwrite: bool = False
@@ -214,6 +233,24 @@ def media_stream_codec_options_all_copy(options: TranscodeOptions) -> bool:
     )
 
 
+def video_rate_control_options(options: TranscodeOptions) -> dict[str, str | int]:
+    """Return av1_qsv rate-control options for quality or bitrate mode."""
+    if options.bitrate is not None:
+        maxrate = (
+            options.maxrate if options.maxrate is not None else options.bitrate * 2
+        )
+        return {
+            "preset": options.preset,
+            "b:v": options.bitrate,
+            "maxrate": maxrate,
+            "bufsize": options.bitrate * 4,
+        }
+    return {
+        "preset": options.preset,
+        "global_quality": options.quality,
+    }
+
+
 def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     """Build a python-ffmpeg ``FFmpeg`` job for Matroska-to-AV1/QSV transcoding.
 
@@ -255,12 +292,7 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
         "f": "matroska",
     }
     if not copy_video:
-        output_options.update(
-            {
-                "preset": options.preset,
-                "global_quality": options.quality,
-            }
-        )
+        output_options.update(video_rate_control_options(options))
         if options.hwaccel:
             output_options["vf"] = "vpp_qsv=format=p010le"
         else:

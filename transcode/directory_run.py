@@ -25,6 +25,8 @@ class DirectoryTranscodeSettings:
     """Shared settings for every Transcode job in a Directory transcode run."""
 
     quality: int = 20
+    bitrate: int | None = None
+    maxrate: int | None = None
     preset: str = "slow"
     hwaccel: bool = True
     overwrite: bool = False
@@ -47,6 +49,8 @@ class TranscodeJob:
             input_file=self.input_file,
             output_file=self.output_file,
             quality=self.settings.quality,
+            bitrate=self.settings.bitrate,
+            maxrate=self.settings.maxrate,
             preset=self.settings.preset,
             hwaccel=self.settings.hwaccel,
             overwrite=self.settings.overwrite,

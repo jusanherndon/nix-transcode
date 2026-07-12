@@ -84,7 +84,7 @@ DEFAULT_DIRECTORY_WAIT_SECONDS = 150
 )
 @click.option(
     "--preset",
-    default="slow",
+    default="veryslow",
     show_default=True,
     help="av1_qsv encoder preset, for example medium, slow, or veryslow.",
 )

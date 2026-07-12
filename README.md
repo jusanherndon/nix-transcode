@@ -66,7 +66,7 @@ transcode input.mkv --vmaf
 ```sh
 ffmpeg -hide_banner -n -hwaccel qsv -hwaccel_output_format qsv -extra_hw_frames 40 -i input.mkv \
   -map 0 -map_metadata 0 -map_chapters 0 \
-  -c:v av1_qsv -preset slow -global_quality 20 -extbrc 1 -look_ahead_depth 40 \
+  -c:v av1_qsv -preset veryslow -global_quality 20 -extbrc 1 -look_ahead_depth 40 \
   -c:a:0 aac -c:s:0 ass -c:t copy \
   -f matroska -vf vpp_qsv=format=p010le transcoded_input.mkv
 ```

@@ -28,7 +28,7 @@ class DirectoryTranscodeSettings:
     quality: int = 20
     bitrate: int | None = None
     maxrate: int | None = None
-    preset: str = "slow"
+    preset: str = "veryslow"
     hwaccel: bool = True
     look_ahead: bool = True
     look_ahead_depth: int = DEFAULT_LOOK_AHEAD_DEPTH

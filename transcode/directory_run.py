@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Literal
 
 from transcode.transcode import (
-    DEFAULT_LOOK_AHEAD_DEPTH,
     TRANSCODED_PREFIX,
     TranscodeOptions,
     display_transcode_command,
@@ -30,8 +29,6 @@ class DirectoryTranscodeSettings:
     maxrate: int | None = None
     preset: str = "veryslow"
     hwaccel: bool = True
-    look_ahead: bool = True
-    look_ahead_depth: int = DEFAULT_LOOK_AHEAD_DEPTH
     overwrite: bool = False
     check_quality: bool = True
     check_vmaf: bool = False
@@ -56,8 +53,6 @@ class TranscodeJob:
             maxrate=self.settings.maxrate,
             preset=self.settings.preset,
             hwaccel=self.settings.hwaccel,
-            look_ahead=self.settings.look_ahead,
-            look_ahead_depth=self.settings.look_ahead_depth,
             overwrite=self.settings.overwrite,
             check_quality=self.settings.check_quality,
             check_vmaf=self.settings.check_vmaf,

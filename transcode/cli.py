@@ -11,7 +11,6 @@ from transcode import __version__
 from transcode.directory_run import DirectoryTranscodeSettings, run_directory_transcode
 from transcode.quality import default_quality_threads
 from transcode.transcode import (
-    DEFAULT_LOOK_AHEAD_DEPTH,
     TranscodeOptions,
     display_transcode_command,
     parse_bitrate,
@@ -94,19 +93,6 @@ DEFAULT_DIRECTORY_WAIT_SECONDS = 150
     show_default=True,
     help="Use Intel QSV hardware-accelerated decoding when possible.",
 )
-@click.option(
-    "--look-ahead/--no-look-ahead",
-    default=True,
-    show_default=True,
-    help="Enable ExtBRC look-ahead (av1_qsv has no classic 2-pass mode).",
-)
-@click.option(
-    "--look-ahead-depth",
-    default=DEFAULT_LOOK_AHEAD_DEPTH,
-    show_default=True,
-    type=click.IntRange(1, 100),
-    help="Look-ahead frame depth used with --look-ahead.",
-)
 @click.option("-y", "--overwrite", is_flag=True, help="Overwrite the output file.")
 @click.option(
     "--check-quality/--no-check-quality",
@@ -151,8 +137,6 @@ def main(
     maxrate: int | None,
     preset: str,
     hwaccel: bool,
-    look_ahead: bool,
-    look_ahead_depth: int,
     overwrite: bool,
     check_quality: bool,
     check_vmaf: bool,
@@ -191,8 +175,6 @@ def main(
                 maxrate=maxrate,
                 preset=preset,
                 hwaccel=hwaccel,
-                look_ahead=look_ahead,
-                look_ahead_depth=look_ahead_depth,
                 overwrite=overwrite,
                 check_quality=check_quality,
                 check_vmaf=check_vmaf,
@@ -223,8 +205,6 @@ def main(
         maxrate=maxrate,
         preset=preset,
         hwaccel=hwaccel,
-        look_ahead=look_ahead,
-        look_ahead_depth=look_ahead_depth,
         overwrite=overwrite,
         check_quality=check_quality,
         check_vmaf=check_vmaf,

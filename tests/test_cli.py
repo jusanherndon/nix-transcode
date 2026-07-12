@@ -33,9 +33,26 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert command[command.index("-c:a") + 1] == "copy"
     assert command[command.index("-c:s") + 1] == "copy"
     assert command[command.index("-global_quality") + 1] == "20"
+    assert command[command.index("-extbrc") + 1] == "1"
+    assert command[command.index("-look_ahead_depth") + 1] == "40"
+    assert command[command.index("-extra_hw_frames") + 1] == "40"
     assert "-b:v" not in command
     assert "-max_muxing_queue_size" not in command
     assert str(tmp_path / "transcoded_movie.mkv") in command
+
+
+def test_build_ffmpeg_command_disables_look_ahead(tmp_path: Path) -> None:
+    """Look-ahead ExtBRC options can be turned off."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    command = build_ffmpeg_command(
+        TranscodeOptions(input_file=input_file, look_ahead=False)
+    )
+
+    assert "-extbrc" not in command
+    assert "-look_ahead_depth" not in command
+    assert "-extra_hw_frames" not in command
 
 
 def test_build_ffmpeg_command_bitrate_mode(tmp_path: Path) -> None:
@@ -50,6 +67,7 @@ def test_build_ffmpeg_command_bitrate_mode(tmp_path: Path) -> None:
     assert command[command.index("-b:v") + 1] == "6000000"
     assert command[command.index("-maxrate") + 1] == "12000000"
     assert command[command.index("-bufsize") + 1] == "24000000"
+    assert command[command.index("-extbrc") + 1] == "1"
     assert "-global_quality" not in command
 
 

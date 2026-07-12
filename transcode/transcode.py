@@ -14,6 +14,7 @@ from ffmpeg.ffmpeg import FFmpeg
 from transcode.quality import check_quality
 
 TRANSCODED_PREFIX = "transcoded_"
+DEFAULT_LOOK_AHEAD_DEPTH = 40
 
 
 def parse_bitrate(value: str) -> int:
@@ -44,6 +45,8 @@ class TranscodeOptions:
     maxrate: int | None = None
     preset: str = "slow"
     hwaccel: bool = True
+    look_ahead: bool = True
+    look_ahead_depth: int = DEFAULT_LOOK_AHEAD_DEPTH
     overwrite: bool = False
     check_quality: bool = True
     check_vmaf: bool = False
@@ -239,16 +242,23 @@ def video_rate_control_options(options: TranscodeOptions) -> dict[str, str | int
         maxrate = (
             options.maxrate if options.maxrate is not None else options.bitrate * 2
         )
-        return {
+        rate_options: dict[str, str | int] = {
             "preset": options.preset,
             "b:v": options.bitrate,
             "maxrate": maxrate,
             "bufsize": options.bitrate * 4,
         }
-    return {
-        "preset": options.preset,
-        "global_quality": options.quality,
-    }
+    else:
+        rate_options = {
+            "preset": options.preset,
+            "global_quality": options.quality,
+        }
+    if options.look_ahead:
+        # av1_qsv has no classic 2-pass mode; ExtBRC look-ahead is Intel's
+        # recommended substitute for better rate-control decisions.
+        rate_options["extbrc"] = 1
+        rate_options["look_ahead_depth"] = options.look_ahead_depth
+    return rate_options
 
 
 def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
@@ -266,7 +276,8 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     (``-map 0``), except for an MJPEG video stream when it is paired with one
     other video stream. It copies attachment streams without re-encoding,
     preserves metadata and chapters, and writes a Matroska
-    container.
+    container. By default it enables ExtBRC look-ahead because av1_qsv does not
+    support classic two-pass encoding.
     """
     ffmpeg = FFmpeg(executable=options.ffmpeg_bin)
     ffmpeg.option("hide_banner")
@@ -276,9 +287,11 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
         (options.video_codec,) if options.video_codec else None
     )
     copy_video = primary_video_codec(video_codecs) == "av1"
-    input_options = {}
+    input_options: dict[str, str | int] = {}
     if options.hwaccel and not copy_video:
         input_options = {"hwaccel": "qsv", "hwaccel_output_format": "qsv"}
+        if options.look_ahead:
+            input_options["extra_hw_frames"] = options.look_ahead_depth
 
     ffmpeg.input(str(options.input_file), input_options)
     output_options = {

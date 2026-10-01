@@ -32,7 +32,7 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert command[command.index("-hwaccel") + 1] == "qsv"
     assert command[command.index("-hwaccel_output_format") + 1] == "qsv"
     assert command[command.index("-vf") + 1] == (
-        "hwdownload,format=nv12,format=p010le"
+        "hwdownload,format=nv12"
     )
     assert "-pix_fmt" not in command
     assert command[command.index("-c:a") + 1] == "copy"
@@ -461,7 +461,7 @@ def test_cli_dry_run(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "ffmpeg" in result.output
     assert "av1_qsv" in result.output
-    assert "-pix_fmt p010le" in result.output
+    assert "-pix_fmt nv12" in result.output
     assert "-c:a copy" in result.output
     assert "-c:s copy" in result.output
 

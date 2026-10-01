@@ -6,7 +6,7 @@ The default command:
 
 - writes a Matroska (`.mkv`) container
 - probes the input video codecs with `ffprobe`
-- encodes video with Intel's AV1 QSV encoder using 10-bit `p010le`, unless the kept input video is already AV1
+- encodes video with Intel's AV1 QSV encoder using 8-bit `nv12`, unless the kept input video is already AV1
 - copies AV1 video streams without re-encoding
 - drops an MJPEG video stream when it is one of exactly two video streams in the container
 - copies AAC and Opus audio streams without re-encoding
@@ -58,7 +58,7 @@ transcode input.mkv --quality-threads 16
 transcode input.mkv --vmaf
 ```
 
-Hardware transcodes decode with Quick Sync, download those frames with `hwdownload`, then convert them to 10-bit `p010le` before `av1_qsv` encodes. ffmpeg stderr is printed while a transcode runs. The default ffmpeg log level is `verbose`; pass `--log-level debug` or `--log-level trace` when a job fails without a clear error. `--quality` maps to ffmpeg's `-q:v` constant QP for `av1_qsv`; lower values preserve more quality but create larger files. The default is `20`. `--bitrate` switches to VBR bitrate mode (`-b:v`, with `-maxrate` defaulting to 2x and `-bufsize` to 4x the target) and ignores `--quality`. If the kept video stream is already AV1, the video stream is copied and encoder quality/preset/bitrate options are not used. After a successful transcode, the tool compares the output against the input with `ffmpeg-quality-metrics` (PSNR and SSIM) unless `--no-check-quality` is passed. Pass `--vmaf` to also calculate VMAF (slower). Quality checks default to CPU count minus two for ffmpeg filters and libvmaf (leaving headroom for other programs); override with `--quality-threads N`. All streams are mapped with `-map 0`, except that an MJPEG video stream is excluded when it is paired with one other video stream. Each AAC/Opus audio stream is copied, and each other audio stream is converted to Opus. Surround layouts such as 5.1 are not downmixed by this tool. Each SSA/ASS or bitmap subtitle stream is copied, and each other text subtitle stream is converted to ASS.
+Hardware transcodes decode with Quick Sync, download those frames with `hwdownload` as 8-bit `nv12`, then `av1_qsv` encodes. ffmpeg stderr is printed while a transcode runs. The default ffmpeg log level is `verbose`; pass `--log-level debug` or `--log-level trace` when a job fails without a clear error. `--quality` maps to ffmpeg's `-q:v` constant QP for `av1_qsv`; lower values preserve more quality but create larger files. The default is `20`. `--bitrate` switches to VBR bitrate mode (`-b:v`, with `-maxrate` defaulting to 2x and `-bufsize` to 4x the target) and ignores `--quality`. If the kept video stream is already AV1, the video stream is copied and encoder quality/preset/bitrate options are not used. After a successful transcode, the tool compares the output against the input with `ffmpeg-quality-metrics` (PSNR and SSIM) unless `--no-check-quality` is passed. Pass `--vmaf` to also calculate VMAF (slower). Quality checks default to CPU count minus two for ffmpeg filters and libvmaf (leaving headroom for other programs); override with `--quality-threads N`. All streams are mapped with `-map 0`, except that an MJPEG video stream is excluded when it is paired with one other video stream. Each AAC/Opus audio stream is copied, and each other audio stream is converted to Opus. Surround layouts such as 5.1 are not downmixed by this tool. Each SSA/ASS or bitmap subtitle stream is copied, and each other text subtitle stream is converted to ASS.
 
 ## Example ffmpeg command
 
@@ -67,5 +67,5 @@ ffmpeg -hide_banner -loglevel verbose -n -hwaccel qsv -hwaccel_output_format qsv
   -map 0 -map_metadata 0 -map_chapters 0 \
   -c:v av1_qsv -preset slow -q:v 20 -bf 0 \
   -c:a:0 aac -c:s:0 ass -c:t copy \
-  -f matroska -vf hwdownload,format=nv12,format=p010le transcoded_input.mkv
+  -f matroska -vf hwdownload,format=nv12 transcoded_input.mkv
 ```

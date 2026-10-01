@@ -19,9 +19,9 @@ DEFAULT_LOG_LEVEL = "verbose"
 # Hardware decode still needs spare surfaces before frames are downloaded.
 QSV_EXTRA_HW_FRAMES = 64
 # hwdownload can only emit the software layout of the Quick Sync surface.
-# These 8-bit 4:2:0 frames are nv12. Listing p010le there makes ffmpeg try to
-# download as p010le and fail. The second format filter does the 10-bit conversion.
-QSV_DOWNLOAD_FILTER = "hwdownload,format=nv12,format=p010le"
+# These 8-bit 4:2:0 frames are nv12. Converting them to p010le makes av1_qsv
+# accept 10-bit input and then never return a frame.
+QSV_DOWNLOAD_FILTER = "hwdownload,format=nv12"
 # ffmpeg's default -bf -1 lets the driver pick GopRefDist 8 and a B-pyramid.
 # That buffer never emits a frame, on both veryslow and slow. 0 forces
 # GopRefDist 1.
@@ -281,10 +281,10 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     """Build a python-ffmpeg ``FFmpeg`` job for Matroska-to-AV1/QSV transcoding.
 
     The job uses Intel Quick Sync Video's AV1 encoder (``av1_qsv``) with the
-    10-bit ``p010le`` pixel format unless the kept input video stream is already
+    8-bit ``nv12`` pixel format unless the kept input video stream is already
     AV1, in which case video is copied. Hardware decoding keeps Quick Sync
     surfaces unless ``hwdownload`` runs first. Without that download, the
-    software scaler cannot turn those surfaces into ``p010le``. AAC and Opus
+    software scaler cannot read those surfaces. AAC and Opus
     audio streams are copied;
     other
     audio streams are converted to Opus while preserving their channel layout
@@ -331,7 +331,7 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
         if options.hwaccel:
             output_options["vf"] = QSV_DOWNLOAD_FILTER
         else:
-            output_options["pix_fmt"] = "p010le"
+            output_options["pix_fmt"] = "nv12"
 
     ffmpeg.output(str(options.resolved_output()), output_options)
     return ffmpeg

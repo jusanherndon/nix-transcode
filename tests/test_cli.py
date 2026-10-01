@@ -38,6 +38,7 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert command[command.index("-c:a") + 1] == "copy"
     assert command[command.index("-c:s") + 1] == "copy"
     assert command[command.index("-global_quality") + 1] == "20"
+    assert command[command.index("-async_depth") + 1] == "32"
     assert "-b:v" not in command
     assert "-max_muxing_queue_size" not in command
     assert command[command.index("-loglevel") + 1] == "verbose"

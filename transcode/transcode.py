@@ -22,6 +22,9 @@ QSV_EXTRA_HW_FRAMES = 64
 # These 8-bit 4:2:0 frames are nv12. Listing p010le there makes ffmpeg try to
 # download as p010le and fail. The second format filter does the 10-bit conversion.
 QSV_DOWNLOAD_FILTER = "hwdownload,format=nv12,format=p010le"
+# veryslow keeps a GopRefDist of 8. The default async_depth is 4, so ffmpeg
+# waits for an output frame before the encoder has enough input to produce one.
+QSV_ASYNC_DEPTH = 32
 FFMPEG_LOG_LEVELS = (
     "quiet",
     "panic",
@@ -321,6 +324,7 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     }
     if not copy_video:
         output_options.update(video_rate_control_options(options))
+        output_options["async_depth"] = QSV_ASYNC_DEPTH
         if options.hwaccel:
             output_options["vf"] = QSV_DOWNLOAD_FILTER
         else:

@@ -65,7 +65,7 @@ Hardware transcodes decode with Quick Sync, download those frames with `hwdownlo
 ```sh
 ffmpeg -hide_banner -loglevel verbose -n -hwaccel qsv -hwaccel_output_format qsv -extra_hw_frames 64 -i input.mkv \
   -map 0 -map_metadata 0 -map_chapters 0 \
-  -c:v av1_qsv -preset veryslow -global_quality 20 \
+  -c:v av1_qsv -preset veryslow -global_quality 20 -async_depth 32 \
   -c:a:0 aac -c:s:0 ass -c:t copy \
   -f matroska -vf hwdownload,format=nv12,format=p010le transcoded_input.mkv
 ```

@@ -18,10 +18,10 @@ TRANSCODED_PREFIX = "transcoded_"
 DEFAULT_LOG_LEVEL = "verbose"
 # Hardware decode still needs spare surfaces before frames are downloaded.
 QSV_EXTRA_HW_FRAMES = 64
-# Current ffmpeg keeps QSV surfaces unless frames are downloaded explicitly.
-# hwdownload must name a software format the surface can produce, then a second
-# format filter converts that to the 10-bit encoder input.
-QSV_DOWNLOAD_FILTER = "hwdownload,format=nv12|p010le,format=p010le"
+# hwdownload can only emit the software layout of the Quick Sync surface.
+# These 8-bit 4:2:0 frames are nv12. Listing p010le there makes ffmpeg try to
+# download as p010le and fail. The second format filter does the 10-bit conversion.
+QSV_DOWNLOAD_FILTER = "hwdownload,format=nv12,format=p010le"
 FFMPEG_LOG_LEVELS = (
     "quiet",
     "panic",

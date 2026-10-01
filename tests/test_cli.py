@@ -39,6 +39,7 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert command[command.index("-c:s") + 1] == "copy"
     assert command[command.index("-global_quality") + 1] == "20"
     assert command[command.index("-preset") + 1] == "slow"
+    assert command[command.index("-bf") + 1] == "0"
     assert "-async_depth" not in command
     assert "-b:v" not in command
     assert "-max_muxing_queue_size" not in command
@@ -209,6 +210,7 @@ def test_build_ffmpeg_command_copies_av1_video(tmp_path: Path) -> None:
     assert "-vf" not in command
     assert "-pix_fmt" not in command
     assert "-extra_hw_frames" not in command
+    assert "-bf" not in command
 
 
 def test_build_ffmpeg_command_copies_aac_and_opus_audio(tmp_path: Path) -> None:

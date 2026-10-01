@@ -66,7 +66,7 @@ DEFAULT_DIRECTORY_WAIT_SECONDS = 150
     default=20,
     show_default=True,
     type=click.IntRange(1, 51),
-    help="Intel QSV global quality. Lower is higher quality/larger file. "
+    help="Intel QSV constant QP. Lower is higher quality/larger file. "
     "Ignored when --bitrate is set.",
 )
 @click.option(

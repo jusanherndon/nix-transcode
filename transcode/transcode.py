@@ -269,9 +269,11 @@ def video_rate_control_options(options: TranscodeOptions) -> dict[str, str | int
             "maxrate": maxrate,
             "bufsize": options.bitrate * 4,
         }
+    # -global_quality selects ICQ. This encoder accepts that mode and then
+    # never returns a frame. -q:v selects constant QP instead.
     return {
         "preset": options.preset,
-        "global_quality": options.quality,
+        "q:v": options.quality,
     }
 
 

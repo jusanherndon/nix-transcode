@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Literal
 
 from transcode.transcode import (
+    DEFAULT_LOG_LEVEL,
     TRANSCODED_PREFIX,
     TranscodeOptions,
     display_transcode_command,
@@ -33,6 +34,7 @@ class DirectoryTranscodeSettings:
     check_quality: bool = True
     check_vmaf: bool = False
     quality_threads: int | None = None
+    log_level: str = DEFAULT_LOG_LEVEL
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +59,7 @@ class TranscodeJob:
             check_quality=self.settings.check_quality,
             check_vmaf=self.settings.check_vmaf,
             quality_threads=self.settings.quality_threads,
+            log_level=self.settings.log_level,
         )
 
 

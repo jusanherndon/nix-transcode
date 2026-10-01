@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shlex
+import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -14,6 +15,18 @@ from ffmpeg.ffmpeg import FFmpeg
 from transcode.quality import check_quality
 
 TRANSCODED_PREFIX = "transcoded_"
+DEFAULT_LOG_LEVEL = "verbose"
+FFMPEG_LOG_LEVELS = (
+    "quiet",
+    "panic",
+    "fatal",
+    "error",
+    "warning",
+    "info",
+    "verbose",
+    "debug",
+    "trace",
+)
 
 
 def parse_bitrate(value: str) -> int:
@@ -48,6 +61,7 @@ class TranscodeOptions:
     check_quality: bool = True
     check_vmaf: bool = False
     quality_threads: int | None = None
+    log_level: str = DEFAULT_LOG_LEVEL
     ffmpeg_bin: str = "ffmpeg"
     ffprobe_bin: str = "ffprobe"
     video_codec: str | None = None
@@ -270,6 +284,7 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     """
     ffmpeg = FFmpeg(executable=options.ffmpeg_bin)
     ffmpeg.option("hide_banner")
+    ffmpeg.option("loglevel", options.log_level)
     ffmpeg.option("y" if options.overwrite else "n")
 
     video_codecs = options.video_codecs or (
@@ -322,8 +337,24 @@ def display_transcode_command(
     return format_command(build_ffmpeg_command(resolved))
 
 
-def transcode(options: TranscodeOptions) -> int:
-    """Run the python-ffmpeg job and return a process-like exit code."""
+def _emit(output: Callable[[str], None] | None, message: str) -> None:
+    """Send a log line to the caller, or to stderr when no callback is set."""
+    if output is not None:
+        output(message)
+        return
+    print(message, file=sys.stderr)
+
+
+def transcode(
+    options: TranscodeOptions,
+    *,
+    output: Callable[[str], None] | None = None,
+) -> int:
+    """Run the python-ffmpeg job and return a process-like exit code.
+
+    ffmpeg stderr is forwarded as it arrives. Failures include the ffmpeg
+    error text.
+    """
     output_file = options.resolved_output()
     if options.input_file.resolve() == output_file.resolve():
         msg = "input and output paths must be different"
@@ -331,8 +362,12 @@ def transcode(options: TranscodeOptions) -> int:
 
     output_existed = output_file.exists()
     try:
-        build_ffmpeg(options_with_probed_codec(options)).execute()
-    except FFmpegError:
+        ffmpeg = build_ffmpeg(options_with_probed_codec(options))
+        ffmpeg.on("stderr", lambda line: _emit(output, line))
+        ffmpeg.execute()
+    except FFmpegError as exc:
+        detail = exc.message or "ffmpeg exited with an error"
+        _emit(output, f"ffmpeg failed: {detail}")
         if output_file.exists() and (options.overwrite or not output_existed):
             output_file.unlink()
         return 1
@@ -345,7 +380,7 @@ def transcode_with_quality_check(
     output: Callable[[str], None] | None = None,
 ) -> int:
     """Run a Transcode job, then optionally score the output against the input."""
-    exit_code = transcode(options)
+    exit_code = transcode(options, output=output)
     if exit_code != 0:
         return exit_code
 

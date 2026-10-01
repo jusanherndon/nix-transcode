@@ -16,6 +16,10 @@ from transcode.quality import check_quality
 
 TRANSCODED_PREFIX = "transcoded_"
 DEFAULT_LOG_LEVEL = "verbose"
+# Decoder, vpp_qsv, and av1_qsv share one Quick Sync frame pool. veryslow
+# keeps several frames in flight, and the default pool runs out after a few
+# frames, which stalls the encoder while audio keeps going.
+QSV_EXTRA_HW_FRAMES = 64
 FFMPEG_LOG_LEVELS = (
     "quiet",
     "panic",
@@ -270,7 +274,9 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
 
     The job uses Intel Quick Sync Video's AV1 encoder (``av1_qsv``) with the
     10-bit ``p010le`` pixel format unless the kept input video stream is already
-    AV1, in which case video is copied. AAC and Opus audio streams are copied;
+    AV1, in which case video is copied. Hardware decoding reserves extra Quick
+    Sync frames so the decoder, ``vpp_qsv``, and ``av1_qsv`` can all hold frames
+    at once. AAC and Opus audio streams are copied;
     other
     audio streams are converted to Opus while preserving their channel layout
     when supported by ffmpeg/aac. Subtitle streams are copied if they are
@@ -293,7 +299,11 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     copy_video = primary_video_codec(video_codecs) == "av1"
     input_options = {}
     if options.hwaccel and not copy_video:
-        input_options = {"hwaccel": "qsv", "hwaccel_output_format": "qsv"}
+        input_options = {
+            "hwaccel": "qsv",
+            "hwaccel_output_format": "qsv",
+            "extra_hw_frames": QSV_EXTRA_HW_FRAMES,
+        }
 
     ffmpeg.input(str(options.input_file), input_options)
     output_options = {
@@ -345,6 +355,27 @@ def _emit(output: Callable[[str], None] | None, message: str) -> None:
     print(message, file=sys.stderr)
 
 
+def _ffmpeg_returncode(ffmpeg: FFmpeg | None) -> int | None:
+    """Return the ffmpeg process exit status, when the process was started."""
+    if ffmpeg is None:
+        return None
+    process = getattr(ffmpeg, "_process", None)
+    returncode = getattr(process, "returncode", None)
+    if isinstance(returncode, int):
+        return returncode
+    return None
+
+
+def _failure_message(exc: FFmpegError, returncode: int | None) -> str:
+    """Return a failure line that includes the process status when known."""
+    detail = exc.message or "ffmpeg exited with an error"
+    if returncode is None:
+        return f"ffmpeg failed: {detail}"
+    if returncode < 0:
+        return f"ffmpeg failed (signal {-returncode}): {detail}"
+    return f"ffmpeg failed (exit {returncode}): {detail}"
+
+
 def transcode(
     options: TranscodeOptions,
     *,
@@ -361,13 +392,13 @@ def transcode(
         raise ValueError(msg)
 
     output_existed = output_file.exists()
+    ffmpeg: FFmpeg | None = None
     try:
         ffmpeg = build_ffmpeg(options_with_probed_codec(options))
         ffmpeg.on("stderr", lambda line: _emit(output, line))
         ffmpeg.execute()
     except FFmpegError as exc:
-        detail = exc.message or "ffmpeg exited with an error"
-        _emit(output, f"ffmpeg failed: {detail}")
+        _emit(output, _failure_message(exc, _ffmpeg_returncode(ffmpeg)))
         if output_file.exists() and (options.overwrite or not output_existed):
             output_file.unlink()
         return 1

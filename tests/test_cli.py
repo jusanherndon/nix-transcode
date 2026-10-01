@@ -36,6 +36,7 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert "-b:v" not in command
     assert "-max_muxing_queue_size" not in command
     assert command[command.index("-loglevel") + 1] == "verbose"
+    assert command[command.index("-extra_hw_frames") + 1] == "64"
     assert str(tmp_path / "transcoded_movie.mkv") in command
 
 
@@ -123,6 +124,41 @@ def test_transcode_prints_ffmpeg_stderr_and_failure(tmp_path: Path, monkeypatch)
     ]
 
 
+def test_transcode_reports_fatal_signal(tmp_path: Path, monkeypatch) -> None:
+    """A killed ffmpeg process reports the signal number."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+    messages: list[str] = []
+
+    class FakeProcess:
+        returncode = -9
+
+    class FakeFFmpegJob:
+        def __init__(self) -> None:
+            self._process = FakeProcess()
+
+        def on(self, _event: str, _callback) -> None:
+            return None
+
+        def execute(self) -> bytes:
+            raise FFmpegError("Killed", ["ffmpeg"])
+
+    monkeypatch.setattr(
+        transcode_module, "options_with_probed_codec", lambda options: options
+    )
+    monkeypatch.setattr(
+        transcode_module, "build_ffmpeg", lambda _options: FakeFFmpegJob()
+    )
+
+    exit_code = transcode_module.transcode(
+        TranscodeOptions(input_file=input_file),
+        output=messages.append,
+    )
+
+    assert exit_code == 1
+    assert messages == ["ffmpeg failed (signal 9): Killed"]
+
+
 def test_cli_bitrate_dry_run(tmp_path: Path) -> None:
     """--bitrate switches the dry-run command into VBR mode."""
     input_file = tmp_path / "movie.mkv"
@@ -165,6 +201,7 @@ def test_build_ffmpeg_command_copies_av1_video(tmp_path: Path) -> None:
     assert "av1_qsv" not in command
     assert "-vf" not in command
     assert "-pix_fmt" not in command
+    assert "-extra_hw_frames" not in command
 
 
 def test_build_ffmpeg_command_copies_aac_and_opus_audio(tmp_path: Path) -> None:

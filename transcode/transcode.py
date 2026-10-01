@@ -18,6 +18,10 @@ TRANSCODED_PREFIX = "transcoded_"
 DEFAULT_LOG_LEVEL = "verbose"
 # Hardware decode still needs spare surfaces before frames are downloaded.
 QSV_EXTRA_HW_FRAMES = 64
+# Current ffmpeg keeps QSV surfaces unless frames are downloaded explicitly.
+# hwdownload must name a software format the surface can produce, then a second
+# format filter converts that to the 10-bit encoder input.
+QSV_DOWNLOAD_FILTER = "hwdownload,format=nv12|p010le,format=p010le"
 FFMPEG_LOG_LEVELS = (
     "quiet",
     "panic",
@@ -272,10 +276,10 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
 
     The job uses Intel Quick Sync Video's AV1 encoder (``av1_qsv``) with the
     10-bit ``p010le`` pixel format unless the kept input video stream is already
-    AV1, in which case video is copied. Hardware decoding downloads frames
-    before the 10-bit conversion. A zero-copy path through ``vpp_qsv`` stalls
-    after a few frames, and the audio encoders then run until the kernel kills
-    the process. AAC and Opus audio streams are copied;
+    AV1, in which case video is copied. Hardware decoding keeps Quick Sync
+    surfaces unless ``hwdownload`` runs first. Without that download, the
+    software scaler cannot turn those surfaces into ``p010le``. AAC and Opus
+    audio streams are copied;
     other
     audio streams are converted to Opus while preserving their channel layout
     when supported by ffmpeg/aac. Subtitle streams are copied if they are
@@ -298,11 +302,9 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     copy_video = primary_video_codec(video_codecs) == "av1"
     input_options = {}
     if options.hwaccel and not copy_video:
-        # Leave frames in system memory. hwaccel_output_format=qsv plus
-        # vpp_qsv keeps decode, convert, and encode on one Quick Sync pool,
-        # and that pipeline stops after a handful of frames.
         input_options = {
             "hwaccel": "qsv",
+            "hwaccel_output_format": "qsv",
             "extra_hw_frames": QSV_EXTRA_HW_FRAMES,
         }
 
@@ -319,7 +321,10 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     }
     if not copy_video:
         output_options.update(video_rate_control_options(options))
-        output_options["pix_fmt"] = "p010le"
+        if options.hwaccel:
+            output_options["vf"] = QSV_DOWNLOAD_FILTER
+        else:
+            output_options["pix_fmt"] = "p010le"
 
     ffmpeg.output(str(options.resolved_output()), output_options)
     return ffmpeg

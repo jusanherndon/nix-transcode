@@ -58,14 +58,14 @@ transcode input.mkv --quality-threads 16
 transcode input.mkv --vmaf
 ```
 
-Hardware transcodes decode with Quick Sync, then convert to 10-bit `p010le` in system memory before `av1_qsv` encodes. ffmpeg stderr is printed while a transcode runs. The default ffmpeg log level is `verbose`; pass `--log-level debug` or `--log-level trace` when a job fails without a clear error. `--quality` maps to ffmpeg's `-global_quality` for `av1_qsv`; lower values preserve more quality but create larger files. The default is `18`. `--bitrate` switches to VBR bitrate mode (`-b:v`, with `-maxrate` defaulting to 2x and `-bufsize` to 4x the target) and ignores `--quality`. If the kept video stream is already AV1, the video stream is copied and encoder quality/preset/bitrate options are not used. After a successful transcode, the tool compares the output against the input with `ffmpeg-quality-metrics` (PSNR and SSIM) unless `--no-check-quality` is passed. Pass `--vmaf` to also calculate VMAF (slower). Quality checks default to CPU count minus two for ffmpeg filters and libvmaf (leaving headroom for other programs); override with `--quality-threads N`. All streams are mapped with `-map 0`, except that an MJPEG video stream is excluded when it is paired with one other video stream. Each AAC/Opus audio stream is copied, and each other audio stream is converted to Opus. Surround layouts such as 5.1 are not downmixed by this tool. Each SSA/ASS or bitmap subtitle stream is copied, and each other text subtitle stream is converted to ASS.
+Hardware transcodes decode with Quick Sync, download those frames with `hwdownload`, then convert them to 10-bit `p010le` before `av1_qsv` encodes. ffmpeg stderr is printed while a transcode runs. The default ffmpeg log level is `verbose`; pass `--log-level debug` or `--log-level trace` when a job fails without a clear error. `--quality` maps to ffmpeg's `-global_quality` for `av1_qsv`; lower values preserve more quality but create larger files. The default is `18`. `--bitrate` switches to VBR bitrate mode (`-b:v`, with `-maxrate` defaulting to 2x and `-bufsize` to 4x the target) and ignores `--quality`. If the kept video stream is already AV1, the video stream is copied and encoder quality/preset/bitrate options are not used. After a successful transcode, the tool compares the output against the input with `ffmpeg-quality-metrics` (PSNR and SSIM) unless `--no-check-quality` is passed. Pass `--vmaf` to also calculate VMAF (slower). Quality checks default to CPU count minus two for ffmpeg filters and libvmaf (leaving headroom for other programs); override with `--quality-threads N`. All streams are mapped with `-map 0`, except that an MJPEG video stream is excluded when it is paired with one other video stream. Each AAC/Opus audio stream is copied, and each other audio stream is converted to Opus. Surround layouts such as 5.1 are not downmixed by this tool. Each SSA/ASS or bitmap subtitle stream is copied, and each other text subtitle stream is converted to ASS.
 
 ## Example ffmpeg command
 
 ```sh
-ffmpeg -hide_banner -loglevel verbose -n -hwaccel qsv -extra_hw_frames 64 -i input.mkv \
+ffmpeg -hide_banner -loglevel verbose -n -hwaccel qsv -hwaccel_output_format qsv -extra_hw_frames 64 -i input.mkv \
   -map 0 -map_metadata 0 -map_chapters 0 \
   -c:v av1_qsv -preset veryslow -global_quality 20 \
   -c:a:0 aac -c:s:0 ass -c:t copy \
-  -f matroska -pix_fmt p010le transcoded_input.mkv
+  -f matroska -vf hwdownload,format=nv12|p010le,format=p010le transcoded_input.mkv
 ```

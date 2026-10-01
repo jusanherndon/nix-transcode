@@ -11,6 +11,8 @@ from transcode import __version__
 from transcode.directory_run import DirectoryTranscodeSettings, run_directory_transcode
 from transcode.quality import default_quality_threads
 from transcode.transcode import (
+    DEFAULT_LOG_LEVEL,
+    FFMPEG_LOG_LEVELS,
     TranscodeOptions,
     display_transcode_command,
     parse_bitrate,
@@ -124,6 +126,13 @@ DEFAULT_DIRECTORY_WAIT_SECONDS = 150
     help="Seconds to wait between files when transcoding a directory; minimum is 150 seconds.",
 )
 @click.option(
+    "--log-level",
+    default=DEFAULT_LOG_LEVEL,
+    show_default=True,
+    type=click.Choice(FFMPEG_LOG_LEVELS, case_sensitive=False),
+    help="ffmpeg log level. verbose and above include more encoder diagnostics.",
+)
+@click.option(
     "--dry-run", is_flag=True, help="Print the ffmpeg command without running it."
 )
 @click.version_option(__version__, prog_name="transcode")
@@ -142,6 +151,7 @@ def main(
     check_vmaf: bool,
     quality_threads: int,
     wait_seconds: int,
+    log_level: str,
     dry_run: bool,
 ) -> None:
     """Transcode a Matroska input file to AV1 in a Matroska container using Intel QSV.
@@ -179,6 +189,7 @@ def main(
                 check_quality=check_quality,
                 check_vmaf=check_vmaf,
                 quality_threads=quality_threads,
+                log_level=log_level,
             ),
             wait_seconds=wait_seconds,
             dry_run=dry_run,
@@ -209,6 +220,7 @@ def main(
         check_quality=check_quality,
         check_vmaf=check_vmaf,
         quality_threads=quality_threads,
+        log_level=log_level,
     )
     click.echo(display_transcode_command(options))
 

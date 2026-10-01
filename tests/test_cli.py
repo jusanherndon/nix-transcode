@@ -35,6 +35,7 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert command[command.index("-global_quality") + 1] == "20"
     assert "-b:v" not in command
     assert "-max_muxing_queue_size" not in command
+    assert command[command.index("-loglevel") + 1] == "verbose"
     assert str(tmp_path / "transcoded_movie.mkv") in command
 
 
@@ -75,6 +76,51 @@ def test_parse_bitrate() -> None:
     assert parse_bitrate("6M") == 6_000_000
     assert parse_bitrate("6000k") == 6_000_000
     assert parse_bitrate("6000000") == 6_000_000
+
+
+def test_build_ffmpeg_command_log_level(tmp_path: Path) -> None:
+    """--log-level is passed through to ffmpeg."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    command = build_ffmpeg_command(
+        TranscodeOptions(input_file=input_file, log_level="debug")
+    )
+
+    assert command[command.index("-loglevel") + 1] == "debug"
+
+
+def test_transcode_prints_ffmpeg_stderr_and_failure(tmp_path: Path, monkeypatch) -> None:
+    """Reported output includes ffmpeg diagnostics and the failure message."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+    messages: list[str] = []
+
+    class FakeFFmpegJob:
+        def on(self, event: str, callback) -> None:
+            assert event == "stderr"
+            callback("qsv device init failed")
+
+        def execute(self) -> bytes:
+            raise FFmpegError("Conversion failed!", ["ffmpeg"])
+
+    monkeypatch.setattr(
+        transcode_module, "options_with_probed_codec", lambda options: options
+    )
+    monkeypatch.setattr(
+        transcode_module, "build_ffmpeg", lambda _options: FakeFFmpegJob()
+    )
+
+    exit_code = transcode_module.transcode(
+        TranscodeOptions(input_file=input_file),
+        output=messages.append,
+    )
+
+    assert exit_code == 1
+    assert messages == [
+        "qsv device init failed",
+        "ffmpeg failed: Conversion failed!",
+    ]
 
 
 def test_cli_bitrate_dry_run(tmp_path: Path) -> None:

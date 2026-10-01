@@ -199,7 +199,9 @@ def test_transcode_with_quality_check_runs_after_success(
     input_file.write_text("not really video")
     printed: list[str] = []
 
-    monkeypatch.setattr(transcode_module, "transcode", lambda _options: 0)
+    monkeypatch.setattr(
+        transcode_module, "transcode", lambda _options, output=None: 0
+    )
     monkeypatch.setattr(
         transcode_module,
         "check_quality",
@@ -236,7 +238,9 @@ def test_transcode_with_quality_check_can_be_skipped(
     called = False
     printed: list[str] = []
 
-    monkeypatch.setattr(transcode_module, "transcode", lambda _options: 0)
+    monkeypatch.setattr(
+        transcode_module, "transcode", lambda _options, output=None: 0
+    )
 
     def unexpected_check(*_args, **_kwargs):
         nonlocal called
@@ -263,7 +267,9 @@ def test_transcode_with_quality_check_skips_on_transcode_failure(
     input_file.write_text("not really video")
     called = False
 
-    monkeypatch.setattr(transcode_module, "transcode", lambda _options: 3)
+    monkeypatch.setattr(
+        transcode_module, "transcode", lambda _options, output=None: 3
+    )
 
     def unexpected_check(*_args, **_kwargs):
         nonlocal called

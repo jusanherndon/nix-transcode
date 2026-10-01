@@ -29,7 +29,10 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     command = build_ffmpeg_command(TranscodeOptions(input_file=input_file))
 
     assert "av1_qsv" in command
-    assert command[command.index("-vf") + 1] == "vpp_qsv=format=p010le"
+    assert command[command.index("-hwaccel") + 1] == "qsv"
+    assert "-hwaccel_output_format" not in command
+    assert "-vf" not in command
+    assert command[command.index("-pix_fmt") + 1] == "p010le"
     assert command[command.index("-c:a") + 1] == "copy"
     assert command[command.index("-c:s") + 1] == "copy"
     assert command[command.index("-global_quality") + 1] == "20"

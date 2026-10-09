@@ -37,8 +37,7 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert "-pix_fmt" not in command
     assert command[command.index("-c:a") + 1] == "copy"
     assert command[command.index("-c:s") + 1] == "copy"
-    assert command[command.index("-q:v") + 1] == "20"
-    assert "-global_quality" not in command
+    assert command[command.index("-global_quality") + 1] == "20"
     assert command[command.index("-preset") + 1] == "slow"
     assert command[command.index("-bf") + 1] == "0"
     assert "-async_depth" not in command
@@ -50,7 +49,7 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
 
 
 def test_build_ffmpeg_command_bitrate_mode(tmp_path: Path) -> None:
-    """Bitrate mode uses VBR options instead of constant QP."""
+    """Bitrate mode uses VBR options instead of global_quality."""
     input_file = tmp_path / "movie.mkv"
     input_file.write_text("not really video")
 

@@ -28,7 +28,7 @@ class DirectoryTranscodeSettings:
     quality: int = 20
     bitrate: int | None = None
     maxrate: int | None = None
-    preset: str = "slow"
+    preset: str = "veryslow"
     hwaccel: bool = True
     overwrite: bool = False
     check_quality: bool = True

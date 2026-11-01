@@ -14,6 +14,7 @@ from transcode.cli import main
 from transcode.transcode import (
     TranscodeOptions,
     build_ffmpeg_command,
+    options_with_probed_codec,
     probe_audio_codecs,
     probe_subtitle_codecs,
     probe_video_codec,
@@ -31,9 +32,7 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert "av1_qsv" in command
     assert command[command.index("-hwaccel") + 1] == "qsv"
     assert command[command.index("-hwaccel_output_format") + 1] == "qsv"
-    assert command[command.index("-vf") + 1] == (
-        "hwdownload,format=nv12,format=p010le"
-    )
+    assert command[command.index("-vf") + 1] == ("hwdownload,format=nv12,format=p010le")
     assert "-pix_fmt" not in command
     assert command[command.index("-c:a") + 1] == "copy"
     assert command[command.index("-c:s") + 1] == "copy"
@@ -43,6 +42,30 @@ def test_build_ffmpeg_command_defaults(tmp_path: Path) -> None:
     assert command[command.index("-loglevel") + 1] == "verbose"
     assert command[command.index("-extra_hw_frames") + 1] == "64"
     assert str(tmp_path / "transcoded_movie.mkv") in command
+
+
+def test_build_ffmpeg_command_downloads_ten_bit_qsv_as_p010le(tmp_path: Path) -> None:
+    """10-bit 4:2:0 Quick Sync frames download as p010le, not nv12."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    command = build_ffmpeg_command(
+        TranscodeOptions(input_file=input_file, video_pix_fmt="yuv420p10le")
+    )
+
+    assert command[command.index("-vf") + 1] == "hwdownload,format=p010le"
+
+
+def test_build_ffmpeg_command_downloads_eight_bit_qsv_as_nv12(tmp_path: Path) -> None:
+    """8-bit 4:2:0 Quick Sync frames download as nv12, then convert to p010le."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+
+    command = build_ffmpeg_command(
+        TranscodeOptions(input_file=input_file, video_pix_fmt="yuv420p")
+    )
+
+    assert command[command.index("-vf") + 1] == ("hwdownload,format=nv12,format=p010le")
 
 
 def test_build_ffmpeg_command_bitrate_mode(tmp_path: Path) -> None:
@@ -443,6 +466,111 @@ def test_probe_subtitle_codecs(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(transcode_module, "FFmpeg", FakeFFmpeg)
 
     assert probe_subtitle_codecs(input_file) == ("subrip", "ass")
+
+
+def _fake_probe(responses: dict[tuple[str, str], bytes]):
+    """Return an FFmpeg stand-in that answers ffprobe field queries."""
+
+    class FakeFFmpeg:
+        def __init__(self, executable: str) -> None:
+            assert executable == "ffprobe"
+            self.arguments = [executable]
+
+        def option(self, key: str, value: str) -> None:
+            self.arguments.extend([f"-{key}", value])
+
+        def input(self, path: str) -> None:
+            self.arguments.extend(["-i", path])
+
+        def execute(self) -> bytes:
+            selector = self.arguments[self.arguments.index("-select_streams") + 1]
+            show = self.arguments[self.arguments.index("-show_entries") + 1]
+            return responses[(selector, show)]
+
+    return FakeFFmpeg
+
+
+def test_probed_ten_bit_video_downloads_as_p010le(tmp_path: Path, monkeypatch) -> None:
+    """A probed HEVC Main 10 stream uses the p010le hwdownload filter."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+    with monkeypatch.context() as patched:
+        patched.setattr(
+            transcode_module,
+            "FFmpeg",
+            _fake_probe(
+                {
+                    ("v", "stream=codec_name"): b'{"streams":[{"codec_name":"hevc"}]}',
+                    ("v", "stream=pix_fmt"): b'{"streams":[{"pix_fmt":"yuv420p10le"}]}',
+                    ("a", "stream=codec_name"): (
+                        b'{"streams":[{"codec_name":"aac"},{"codec_name":"eac3"}]}'
+                    ),
+                    ("s", "stream=codec_name"): (
+                        b'{"streams":[{"codec_name":"ass"},{"codec_name":"ass"}]}'
+                    ),
+                }
+            ),
+        )
+        options = options_with_probed_codec(TranscodeOptions(input_file=input_file))
+
+    command = build_ffmpeg_command(options)
+
+    assert command[command.index("-vf") + 1] == "hwdownload,format=p010le"
+
+
+def test_probed_eight_bit_video_downloads_as_nv12(tmp_path: Path, monkeypatch) -> None:
+    """A probed 8-bit stream still downloads as nv12 before converting to p010le."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+    with monkeypatch.context() as patched:
+        patched.setattr(
+            transcode_module,
+            "FFmpeg",
+            _fake_probe(
+                {
+                    ("v", "stream=codec_name"): b'{"streams":[{"codec_name":"h264"}]}',
+                    ("v", "stream=pix_fmt"): b'{"streams":[{"pix_fmt":"yuv420p"}]}',
+                    ("a", "stream=codec_name"): b'{"streams":[{"codec_name":"aac"}]}',
+                    ("s", "stream=codec_name"): b'{"streams":[{"codec_name":"ass"}]}',
+                }
+            ),
+        )
+        options = options_with_probed_codec(TranscodeOptions(input_file=input_file))
+
+    command = build_ffmpeg_command(options)
+
+    assert command[command.index("-vf") + 1] == ("hwdownload,format=nv12,format=p010le")
+
+
+def test_probed_ten_bit_video_ignores_mjpeg_pixel_format(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """An MJPEG thumbnail's 8-bit pixel format does not select the download filter."""
+    input_file = tmp_path / "movie.mkv"
+    input_file.write_text("not really video")
+    with monkeypatch.context() as patched:
+        patched.setattr(
+            transcode_module,
+            "FFmpeg",
+            _fake_probe(
+                {
+                    ("v", "stream=codec_name"): (
+                        b'{"streams":[{"codec_name":"mjpeg"},{"codec_name":"hevc"}]}'
+                    ),
+                    ("v", "stream=pix_fmt"): (
+                        b'{"streams":[{"pix_fmt":"yuvj420p"},'
+                        b'{"pix_fmt":"yuv420p10le"}]}'
+                    ),
+                    ("a", "stream=codec_name"): b'{"streams":[]}',
+                    ("s", "stream=codec_name"): b'{"streams":[]}',
+                }
+            ),
+        )
+        options = options_with_probed_codec(TranscodeOptions(input_file=input_file))
+
+    command = build_ffmpeg_command(options)
+
+    assert command[command.index("-vf") + 1] == "hwdownload,format=p010le"
 
 
 def test_cli_dry_run(tmp_path: Path) -> None:

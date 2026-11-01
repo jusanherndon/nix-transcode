@@ -19,9 +19,15 @@ DEFAULT_LOG_LEVEL = "verbose"
 # Hardware decode still needs spare surfaces before frames are downloaded.
 QSV_EXTRA_HW_FRAMES = 64
 # hwdownload can only emit the software layout of the Quick Sync surface.
-# These 8-bit 4:2:0 frames are nv12. Listing p010le there makes ffmpeg try to
-# download as p010le and fail. The second format filter does the 10-bit conversion.
-QSV_DOWNLOAD_FILTER = "hwdownload,format=nv12,format=p010le"
+# 8-bit 4:2:0 surfaces are nv12. Listing p010le there makes ffmpeg try to
+# download as p010le and fail, so a second format filter does the conversion.
+# 10-bit 4:2:0 surfaces are already p010le. Asking for nv12 fails with
+# "Invalid output format nv12 for hwframe download."
+QSV_DOWNLOAD_FILTER_NV12 = "hwdownload,format=nv12,format=p010le"
+QSV_DOWNLOAD_FILTER_P010 = "hwdownload,format=p010le"
+P010_SOURCE_PIXEL_FORMATS = frozenset(
+    {"yuv420p10le", "yuv420p10be", "p010le", "p010be"}
+)
 FFMPEG_LOG_LEVELS = (
     "quiet",
     "panic",
@@ -72,6 +78,7 @@ class TranscodeOptions:
     ffprobe_bin: str = "ffprobe"
     video_codec: str | None = None
     video_codecs: tuple[str, ...] | None = None
+    video_pix_fmt: str | None = None
     audio_codecs: tuple[str, ...] | None = None
     subtitle_codecs: tuple[str, ...] | None = None
 
@@ -84,23 +91,33 @@ class TranscodeOptions:
         )
 
 
-def probe_stream_codecs(
-    input_file: Path, stream_selector: str, ffprobe_bin: str = "ffprobe"
+def probe_stream_field(
+    input_file: Path,
+    stream_selector: str,
+    field: str,
+    ffprobe_bin: str = "ffprobe",
 ) -> tuple[str, ...]:
-    """Return stream codec names reported by ffprobe for a stream selector."""
+    """Return lowercase stream field values reported by ffprobe."""
     ffprobe = FFmpeg(executable=ffprobe_bin)
     ffprobe.option("v", "error")
     ffprobe.option("select_streams", stream_selector)
-    ffprobe.option("show_entries", "stream=codec_name")
+    ffprobe.option("show_entries", f"stream={field}")
     ffprobe.option("of", "json")
     ffprobe.input(str(input_file))
 
     streams = json.loads(ffprobe.execute().decode()).get("streams", [])
     return tuple(
-        codec.lower()
+        value.lower()
         for stream in streams
-        if isinstance((codec := stream.get("codec_name")), str)
+        if isinstance((value := stream.get(field)), str)
     )
+
+
+def probe_stream_codecs(
+    input_file: Path, stream_selector: str, ffprobe_bin: str = "ffprobe"
+) -> tuple[str, ...]:
+    """Return stream codec names reported by ffprobe for a stream selector."""
+    return probe_stream_field(input_file, stream_selector, "codec_name", ffprobe_bin)
 
 
 def probe_video_codecs(
@@ -114,6 +131,13 @@ def probe_video_codec(input_file: Path, ffprobe_bin: str = "ffprobe") -> str | N
     """Return the first video stream codec name reported by ffprobe."""
     codecs = probe_video_codecs(input_file, ffprobe_bin)
     return codecs[0] if codecs else None
+
+
+def probe_video_pixel_formats(
+    input_file: Path, ffprobe_bin: str = "ffprobe"
+) -> tuple[str, ...]:
+    """Return all video stream pixel formats reported by ffprobe."""
+    return probe_stream_field(input_file, "v", "pix_fmt", ffprobe_bin)
 
 
 def probe_audio_codecs(
@@ -133,10 +157,11 @@ def probe_subtitle_codecs(
 def options_with_probed_codec(
     options: TranscodeOptions, *, strict: bool = True
 ) -> TranscodeOptions:
-    """Return options populated with the input video codec from ffprobe."""
+    """Return options populated with probed video, audio, and subtitle details."""
     if (
         options.video_codec is not None
         and options.video_codecs is not None
+        and options.video_pix_fmt is not None
         and options.audio_codecs is not None
         and options.subtitle_codecs is not None
     ):
@@ -153,6 +178,12 @@ def options_with_probed_codec(
         video_codec = options.video_codec
         if video_codec is None:
             video_codec = primary_video_codec(video_codecs)
+        video_pix_fmt = options.video_pix_fmt
+        if video_pix_fmt is None:
+            video_pix_fmt = primary_video_pix_fmt(
+                video_codecs,
+                probe_video_pixel_formats(options.input_file, options.ffprobe_bin),
+            )
         audio_codecs = options.audio_codecs
         if audio_codecs is None:
             audio_codecs = probe_audio_codecs(options.input_file, options.ffprobe_bin)
@@ -169,6 +200,7 @@ def options_with_probed_codec(
         options,
         video_codec=video_codec,
         video_codecs=video_codecs,
+        video_pix_fmt=video_pix_fmt,
         audio_codecs=audio_codecs,
         subtitle_codecs=subtitle_codecs,
     )
@@ -179,6 +211,33 @@ def video_streams_to_drop(video_codecs: tuple[str, ...] | None) -> tuple[int, ..
     if video_codecs is None or video_codecs.count("mjpeg") != 1:
         return ()
     return tuple(index for index, codec in enumerate(video_codecs) if codec == "mjpeg")
+
+
+def primary_video_pix_fmt(
+    video_codecs: tuple[str, ...] | None,
+    video_pix_fmts: tuple[str, ...],
+) -> str | None:
+    """Return the pixel format of the first video stream that will be kept."""
+    dropped_indexes = set(video_streams_to_drop(video_codecs))
+    return next(
+        (
+            pix_fmt
+            for index, pix_fmt in enumerate(video_pix_fmts)
+            if index not in dropped_indexes and pix_fmt
+        ),
+        None,
+    )
+
+
+def qsv_download_filter(pix_fmt: str | None) -> str:
+    """Return the hwdownload chain for a Quick Sync surface of this pixel format.
+
+    10-bit 4:2:0 frames are downloaded as ``p010le``. Other frames download as
+    ``nv12`` and are then converted to ``p010le``.
+    """
+    if pix_fmt is not None and pix_fmt.lower() in P010_SOURCE_PIXEL_FORMATS:
+        return QSV_DOWNLOAD_FILTER_P010
+    return QSV_DOWNLOAD_FILTER_NV12
 
 
 def primary_video_codec(video_codecs: tuple[str, ...] | None) -> str | None:
@@ -278,8 +337,9 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     10-bit ``p010le`` pixel format unless the kept input video stream is already
     AV1, in which case video is copied. Hardware decoding keeps Quick Sync
     surfaces unless ``hwdownload`` runs first. Without that download, the
-    software scaler cannot turn those surfaces into ``p010le``. AAC and Opus
-    audio streams are copied;
+    software scaler cannot turn 8-bit ``nv12`` surfaces into ``p010le``.
+    10-bit 4:2:0 surfaces are already ``p010le`` and must be downloaded as
+    that format. AAC and Opus audio streams are copied;
     other
     audio streams are converted to Opus while preserving their channel layout
     when supported by ffmpeg/aac. Subtitle streams are copied if they are
@@ -322,7 +382,7 @@ def build_ffmpeg(options: TranscodeOptions) -> FFmpeg:
     if not copy_video:
         output_options.update(video_rate_control_options(options))
         if options.hwaccel:
-            output_options["vf"] = QSV_DOWNLOAD_FILTER
+            output_options["vf"] = qsv_download_filter(options.video_pix_fmt)
         else:
             output_options["pix_fmt"] = "p010le"
 
